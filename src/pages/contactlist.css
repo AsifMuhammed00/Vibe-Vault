@@ -1,0 +1,39 @@
+.contact-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .contact {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid #ccc;
+    cursor: pointer;
+  }
+  
+  .avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    margin-right: 10px;
+  }
+  
+  .info {
+    flex: 1;
+  }
+  
+  .info h2 {
+    font-size: 16px;
+    margin-bottom: 5px;
+  }
+  
+  .status {
+    font-size: 12px;
+    color: #ccc;
+  }
+  
+  .status.online {
+    color: green;
+  }
+  

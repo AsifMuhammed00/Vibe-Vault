@@ -1,0 +1,21 @@
+.home-content-wrapper{
+    display: flex;
+    height: 100vh;
+  }
+  
+  .chat-notification-area{
+    flex: 1;
+    position: fixed;
+    width: 300px;
+    /* height: 100vh; */
+    /* left: 240px; */
+  }
+  .posts-area{
+      /* position: fixed; */
+      /* left: 520px; */
+      /* height: 100vh; */
+      margin-left: 300px;
+      flex: 3;
+      padding: 20px 40px;
+      border-left: 1px solid;
+  }
