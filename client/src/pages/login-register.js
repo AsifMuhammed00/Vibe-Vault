@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import './login-register.css';
 import axios from 'axios';
+import { useCurrentUser } from './../functions/index';
+
 
 function LoginRegisterPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -12,6 +14,8 @@ function LoginRegisterPage() {
   const handleToggleMode = () => {
     setIsLogin(prevMode => !prevMode);
   };
+
+  const current = useCurrentUser()
 
   const handleRegisterSubmit = async (event) => {
     event.preventDefault();
@@ -36,15 +40,18 @@ function LoginRegisterPage() {
         password,
         email
       });
-      alert('User Logged in successfully');
       window.localStorage.setItem('token', response.data.token);
-      
+      window.location.href="/"
     } catch (error) {
       console.error('Error to login', error.message);
-      alert('Error to login');
     }
   };
 
+  React.useEffect(()=>{
+    if(current.isAuthenticated ){
+      window.location.href = "/"
+    }
+  },[])
 
   return (
     <div className='login-wrapper'>

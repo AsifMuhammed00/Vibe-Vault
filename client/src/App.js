@@ -6,6 +6,8 @@ import "./App.css";
 import Home from './pages/home';
 import About from './pages/about';
 import Contact from './pages/contact';
+import MyProfile from './pages/my-profile';
+
 import { useCurrentUser } from './functions/index';
 
 import LoginRegisterPage from './pages/login-register'
@@ -13,6 +15,11 @@ import LoginRegisterPage from './pages/login-register'
 
 const App = () => {
   const [collapsed, setCollapsed] = useState(false);
+
+  const handleLogout = ()=>{
+    localStorage.removeItem('token'); 
+    window.location.href="/login-register"
+  }
 
   const SiderBar = () => (
     <div className="siderbar">
@@ -23,10 +30,16 @@ const App = () => {
             <Link to="/">Home</Link>
           </li>
           <li>
+            <Link to="/my-profile">My Profile</Link>
+          </li>
+          <li>
             <Link to="/about">About</Link>
           </li>
           <li>
             <Link to="/contact">Contact</Link>
+          </li>
+          <li>
+           <button onClick={()=>{handleLogout()}}>Logout</button>
           </li>
         </ul>
       </nav>
@@ -58,6 +71,7 @@ const App = () => {
       <div className="content-wrapper">
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/my-profile" element={<MyProfile />} />
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
         </Routes>
@@ -71,8 +85,16 @@ const App = () => {
 
 console.log("current",current)
 
+if(current.loading){
+  return "Loading..."
+}
 
-  if (window.location.pathname === "/login-register") {
+
+
+  if (window.location.pathname === "/login-register" ) {
+    if(current.isAuthenticated){
+      window.location.href = "/"
+    } 
     return (
       <div>
         <Router>
@@ -83,8 +105,14 @@ console.log("current",current)
       </div>
     )
   } else {
+    if(!current.isAuthenticated){
+      window.location.href = "/login-register"
+    } 
     return (
       <Router>
+        <Routes>
+          <Route path="/login-register" element={<LoginRegisterPage />} />
+        </Routes>
         <div className="app">
           <SiderBar style={{ display: collapsed ? 'none' : 'block' }} />
           <div className="main-content">

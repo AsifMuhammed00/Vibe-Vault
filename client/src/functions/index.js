@@ -2,13 +2,18 @@ import axios from 'axios';
 import React from 'react';
 
 export function useCurrentUser() {
-    const [currentUser, setCurrentUser] = React.useState({ isAuthenticated: false, user: null });   
+    const [currentUser, setCurrentUser] = React.useState({ isAuthenticated: false, user: null,loading:true });   
 
     React.useEffect(() => {
         const fetchUserData = async () => {
             try {
                 const token = localStorage.getItem('token');
                 if (!token) {
+                    setCurrentUser({
+                        isAuthenticated: false,
+                        user: null,
+                        loading: false
+                    });
                     return; 
                 }
 
@@ -21,7 +26,8 @@ export function useCurrentUser() {
                 const userData = response.data;
                 setCurrentUser({
                     isAuthenticated: true,
-                    user: userData.user
+                    user: userData.user,
+                    loading: false
                 });
             } catch (error) {
                 console.error('Error fetching user data:', error);
