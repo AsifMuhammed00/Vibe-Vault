@@ -3,7 +3,7 @@
 .profile-page {
     font-family: Arial, sans-serif;
     max-width: 800px;
-    margin: 30px auto;
+    margin: 100px auto;
     padding: 20px;
     background-color: #f9f9f9;
     border-radius: 10px;
@@ -108,3 +108,53 @@
     border-radius: 5px;
   }
   
+  /* CreatePost.css */
+
+.create-post {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 20px;
+}
+
+.create-post button {
+  background-color: #4CAF50; /* Green */
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.modal {
+  overflow: auto; /* Enable scroll if needed */
+  background-color: white;
+  width: 100%;
+  display: flex ;
+  justify-content: center;
+  flex-direction: column;
+  padding: 30px;
+  height: 200px;
+}
+
+.modal-content {
+  background-color: white;
+  margin: 15% auto; /* 15% from the top and centered */
+  padding: 20px;
+  border: 1px solid #888;
+  width: 80%; /* Could be more or less, depending on need */
+}
+
+.close {
+  color: #aaaaaa;
+  float: right;
+  font-size: 28px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.close:hover, .close:focus {
+  color: #000000;
+  text-decoration: none;
+  cursor: auto;
+}

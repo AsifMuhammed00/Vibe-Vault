@@ -17,15 +17,13 @@ function LoginRegisterPage() {
 
   const current = useCurrentUser()
 
-  const handleRegisterSubmit = async (event) => {
-    event.preventDefault();
+  const handleRegisterSubmit = async () => {
     try {
       const response = await axios.post('http://localhost:3001/api/register-user', {
         name,
         password,
         email
       });
-      console.log(response.data);
       alert('User registered successfully');
       
     } catch (error) {
