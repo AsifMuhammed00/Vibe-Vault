@@ -176,6 +176,58 @@ app.delete('/api/posts/:userId/:postId', async (req, res) => {
   }
 });
 
+app.post('/api/like-unlike', async (req, res) => {
+  try {
+    const { db, client } = await connectDB();
+    const postCollection = db.collection('posts');
+
+    const { userId, postId, isLike, userName } = req.body;
+
+    console.log("isLike",isLike)
+
+    if (!isLike) {
+      await postCollection.updateOne(
+        { _id: new ObjectId(postId) }, 
+        { $push: { likes: { userId: userId, userName: userName } } }
+      );
+    } else {
+      await postCollection.updateOne(
+        { _id: new ObjectId(postId) }, 
+        { $pull: { likes: { userId: userId } } }
+      );
+    }
+
+    await client.close();
+    res.status(200).send('Operation completed successfully.');
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ message: 'Error' });
+  }
+});
+
+app.get('/api/get-post-info/:postId', async (req, res) => {
+  try {
+    const { db, client } = await connectDB();
+    const postCollection = db.collection('posts');
+
+    const { postId } = req.params;
+
+
+    const postInfo =  await postCollection.findOne(
+        { _id: new ObjectId(postId) }
+      );
+    
+      if(!postInfo){
+        res.status(404).json({ message: 'Post not found' });
+      }
+
+    await client.close();
+    res.status(200).json({ postInfo });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ message: 'Error' });
+  }
+});
 app.listen(port, () => {
   console.log(`Server is listening at http://localhost:${port}`);
 });

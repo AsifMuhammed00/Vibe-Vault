@@ -7,6 +7,7 @@ import Home from './pages/home';
 import About from './pages/about';
 import Contact from './pages/contact';
 import MyProfile from './pages/my-profile';
+import Header from './components/Navbar';
 
 import { useCurrentUser } from './functions/index';
 
@@ -16,9 +17,9 @@ import LoginRegisterPage from './pages/login-register'
 const App = () => {
   const [collapsed, setCollapsed] = useState(false);
 
-  const handleLogout = ()=>{
-    localStorage.removeItem('token'); 
-    window.location.href="/login-register"
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    window.location.href = "/login-register"
   }
 
   const SiderBar = () => (
@@ -39,35 +40,18 @@ const App = () => {
             <Link to="/contact">Contact</Link>
           </li>
           <li>
-           <button onClick={()=>{handleLogout()}}>Logout</button>
+            <button onClick={() => { handleLogout() }}>Logout</button>
           </li>
         </ul>
       </nav>
     </div>
   );
 
-  const HeaderBar = () => (
-    <header className="app-header">
-      <div className="header-left">
-        <i className="material-icons"><Link to={'/?notification'}>Notifications</Link></i>
-        <span className="badge">2</span>
-        <i className="material-icons"><Link to={'/?chat'}>Chat</Link></i>
-      </div>
-      <div className="header-center">
-        <input
-          type="text"
-          placeholder="Search..."
-        />
-      </div>
-      <div className="header-right">
-        <i className="material-icons">mail</i>
-      </div>
-    </header>
-  );
+
 
   const ContentArea = () => (
     <main>
-      <div className="header"><HeaderBar /></div>
+      <div className="header"><Header /></div>
       <div className="content-wrapper">
         <Routes>
           <Route path="/" element={<Home />} />
@@ -80,34 +64,33 @@ const App = () => {
   );
 
 
-    
-   const current = useCurrentUser(); 
 
-console.log("current",current)
-
-if(current.loading){
-  return "Loading..."
-}
+  const current = useCurrentUser();
 
 
+  if (current.loading) {
+    return "Loading..."
+  }
 
-  if (window.location.pathname === "/login-register" ) {
-    if(current.isAuthenticated){
+
+
+  if (window.location.pathname === "/login-register") {
+    if (current.isAuthenticated) {
       window.location.href = "/"
-    } 
+    }
     return (
       <div>
         <Router>
-        <Routes>
-          <Route path="/login-register" element={<LoginRegisterPage />} />
-        </Routes>
+          <Routes>
+            <Route path="/login-register" element={<LoginRegisterPage />} />
+          </Routes>
         </Router>
       </div>
     )
   } else {
-    if(!current.isAuthenticated){
+    if (!current.isAuthenticated) {
       window.location.href = "/login-register"
-    } 
+    }
     return (
       <Router>
         <Routes>

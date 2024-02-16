@@ -1,0 +1,61 @@
+.profile-dropdown {
+    position: relative;
+    display: inline-block;
+  }
+  
+  .profile-search-input {
+    cursor: pointer;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+  }
+  
+  .dropdown-content {
+    position: absolute;
+    top: 40px; /* Adjust according to your design */
+    background-color: #ffffff;
+    width: 250px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    overflow-y: auto;
+    max-height: 200px; /* Limit dropdown height for scrolling */
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .user-item {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    transition: background-color 0.3s;
+  }
+  
+  .user-item:hover {
+    background-color: #f9f9f9;
+  }
+  
+  .profile-picture {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    margin-right: 12px;
+  }
+  
+  .user-name {
+    font-size: 14px;
+    font-weight: bold;
+  }
+  
+  /* Scrollbar styling */
+  .dropdown-content::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  .dropdown-content::-webkit-scrollbar-thumb {
+    background-color: #888;
+    border-radius: 4px;
+  }
+  
+  .dropdown-content::-webkit-scrollbar-thumb:hover {
+    background-color: #555;
+  }
+  
