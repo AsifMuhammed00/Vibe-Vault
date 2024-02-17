@@ -6,12 +6,14 @@ import "./App.css";
 import Home from './pages/home';
 import About from './pages/about';
 import Contact from './pages/contact';
-import MyProfile from './pages/my-profile';
+import UserProfiles from './pages/user-profile';
 import Header from './components/Navbar';
 
 import { useCurrentUser } from './functions/index';
 
 import LoginRegisterPage from './pages/login-register'
+import SearchResults from './pages/search-result';
+import MyRequests from './pages/my-requests';
 
 
 const App = () => {
@@ -34,7 +36,7 @@ const App = () => {
             <Link to="/my-profile">My Profile</Link>
           </li>
           <li>
-            <Link to="/about">About</Link>
+            <Link to="/requests">Requests</Link>
           </li>
           <li>
             <Link to="/contact">Contact</Link>
@@ -55,9 +57,12 @@ const App = () => {
       <div className="content-wrapper">
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/my-profile" element={<MyProfile />} />
+          <Route path="/my-profile" element={<UserProfiles />} />
+          <Route path="/profile/:id" element={<UserProfiles />} />
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/search" element={<SearchResults />} />
+          <Route path="/requests" element={<MyRequests />} />
         </Routes>
       </div>
     </main>

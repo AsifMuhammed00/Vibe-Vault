@@ -100,7 +100,8 @@ app.post('/api/register-user', async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      roles
+      roles,
+      friends:[]
     });
 
     await client.close();
@@ -122,7 +123,7 @@ app.post('/api/create-new-post', async (req, res) => {
     const result = await postCollection.insertOne({
       userId,
       postContent,
-      likes:[],
+      likes: [],
       createdAt: moment().valueOf()
     });
 
@@ -153,7 +154,6 @@ app.get('/api/posts/:userId', async (req, res) => {
 app.delete('/api/posts/:userId/:postId', async (req, res) => {
   try {
     const { userId, postId } = req.params;
-    console.log("postId",postId)
 
     const { db, client } = await connectDB();
     const postCollection = db.collection('posts');
@@ -183,16 +183,14 @@ app.post('/api/like-unlike', async (req, res) => {
 
     const { userId, postId, isLike, userName } = req.body;
 
-    console.log("isLike",isLike)
-
     if (!isLike) {
       await postCollection.updateOne(
-        { _id: new ObjectId(postId) }, 
+        { _id: new ObjectId(postId) },
         { $push: { likes: { userId: userId, userName: userName } } }
       );
     } else {
       await postCollection.updateOne(
-        { _id: new ObjectId(postId) }, 
+        { _id: new ObjectId(postId) },
         { $pull: { likes: { userId: userId } } }
       );
     }
@@ -213,13 +211,13 @@ app.get('/api/get-post-info/:postId', async (req, res) => {
     const { postId } = req.params;
 
 
-    const postInfo =  await postCollection.findOne(
-        { _id: new ObjectId(postId) }
-      );
-    
-      if(!postInfo){
-        res.status(404).json({ message: 'Post not found' });
-      }
+    const postInfo = await postCollection.findOne(
+      { _id: new ObjectId(postId) }
+    );
+
+    if (!postInfo) {
+      res.status(404).json({ message: 'Post not found' });
+    }
 
     await client.close();
     res.status(200).json({ postInfo });
@@ -228,6 +226,259 @@ app.get('/api/get-post-info/:postId', async (req, res) => {
     res.status(500).json({ message: 'Error' });
   }
 });
+
+app.get('/api/search/:keyword', async (req, res) => {
+  const keyword = req.params.keyword;
+  const { db, client } = await connectDB();
+  const usersCollection = db.collection('users');
+  const users = await usersCollection.find({ name: { $regex: new RegExp(keyword, 'i') } }).toArray();
+  await client.close();
+
+  res.json(users);
+});
+
+app.get('/api/get-user-info/:userId', async (req, res) => {
+  const userId = req.params.userId;
+  const { db, client } = await connectDB();
+  const usersCollection = db.collection('users');
+  const user = await usersCollection.findOne({ _id: new ObjectId(userId) });
+  await client.close();
+
+  res.json(user);
+});
+
+app.post('/api/send-req', async (req, res) => {
+  try {
+    const { db, client } = await connectDB();
+    const requestCollection = db.collection('requests');
+
+    const { to, from, status } = req.body;
+
+
+    const existingItem = await requestCollection.findOne({ to, from });
+    if (!existingItem) {
+      await requestCollection.insertOne({
+        to,
+        from,
+        status
+      });
+    } else {
+      const filter = {
+        to,
+        from,
+      };
+
+      const update = {
+        $set: {
+          status: "Requested"
+        }
+      };
+
+      const options = {
+        upsert: false
+      };
+
+      await requestCollection.updateOne(filter, update, options);
+    }
+    await client.close();
+    res.status(200).send('Request sent!');
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ message: 'Error' });
+  }
+});
+
+app.get('/api/find-reqs/:currentUserId', async (req, res) => {
+  try {
+    const { db, client } = await connectDB();
+    const requestCollection = db.collection('requests');
+
+    const { currentUserId } = req.params;
+
+    const result = await requestCollection.find({
+      from: currentUserId,
+      status: "Requested"
+    }).toArray();
+
+    const userIds = result.map((r) => {
+      return r.to
+    })
+    await client.close();
+    res.json(userIds);
+
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ message: 'Error' });
+  }
+});
+
+app.delete('/api/cancel-requests/:userId/:requestedUserId', async (req, res) => {
+  try {
+    const { userId, requestedUserId } = req.params;
+
+    const { db, client } = await connectDB();
+    const requestCollection = db.collection('requests');
+
+    const result = await requestCollection.deleteOne({
+      from: requestedUserId,
+      to: userId
+    });
+
+    await client.close();
+
+    if (result.deletedCount === 1) {
+      res.json({ message: 'request cancelled successfully' });
+    } else {
+      res.status(404).json({ message: 'req not found' });
+    }
+  } catch (error) {
+    console.error('Error', error);
+    res.status(500).json({ message: 'Error' });
+  }
+});
+
+app.get('/api/get-reqs/:userId', async (req, res) => {
+  try {
+    const { db, client } = await connectDB();
+    const requestCollection = db.collection('requests');
+    const userCollection = db.collection('users');
+
+    const { userId } = req.params;
+
+    const result = await requestCollection.find({
+      to: userId,
+      status: "Requested"
+    }).toArray();
+
+    const userIds = result.map((r) => {
+      return new ObjectId(r.from)
+    })
+
+    const items = await userCollection.find({ _id: { $in: userIds } }).toArray();
+
+    await client.close();
+    res.json(items);
+
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ message: 'Error' });
+  }
+});
+
+app.post('/api/accept-req', async (req, res) => {
+  try {
+    const { db, client } = await connectDB();
+    const requestCollection = db.collection('requests');
+    const userCollection = db.collection('users');
+
+    const { userId, requestedUserId } = req.body;
+
+    const filter = {
+      to: requestedUserId,
+      from: userId,
+      status: "Requested"
+    };
+
+    const update = {
+      $set: {
+        status: "Accepted"
+      }
+    };
+
+
+    const options = {
+      upsert: false
+    };
+
+    await requestCollection.updateOne(filter, update, options);
+
+    await userCollection.updateOne(
+      { _id: new ObjectId(requestedUserId) },
+      { $push: { friends: userId } }
+    );
+
+    await userCollection.updateOne(
+      { _id: new ObjectId(userId) },
+      { $push: { friends: requestedUserId } }
+    );
+
+    await client.close();
+    res.status(200).send('Operation completed successfully.');
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ message: 'Error' });
+  }
+});
+
+app.post('/api/reject-req', async (req, res) => {
+  try {
+    const { db, client } = await connectDB();
+    const requestCollection = db.collection('requests');
+
+    const { userId, requestedUserId } = req.body;
+
+    const filter = {
+      to: requestedUserId,
+      from: userId,
+      status: "Requested"
+    };
+
+    const update = {
+      $set: {
+        status: "Rejected"
+      }
+    };
+
+
+    const options = {
+      upsert: false
+    };
+
+    await requestCollection.updateOne(filter, update, options);
+
+
+    await client.close();
+    res.status(200).send('Operation completed successfully.');
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ message: 'Error' });
+  }
+});
+
+app.get('/api/get-recent-posts/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { db, client } = await connectDB();
+    const postCollection = db.collection('posts');
+    const userCollection = db.collection('users');
+
+
+    const user = await userCollection.findOne({ _id: new ObjectId(userId) });
+    let userIds = user.friends
+    userIds.push(userId)
+
+    const posts = await postCollection.find({ userId: { $in: userIds} }).sort({ createdAt: -1 }).toArray();
+
+    const postWithOwnerNames = await Promise.all(posts.map(async (post) => {
+      const postOwner = await userCollection.findOne({ _id: new ObjectId(post.userId) });
+      return {
+          ...post,
+          postOwnerName: postOwner.name
+      };
+  }));
+
+    await client.close();
+
+    res.json(postWithOwnerNames);
+  } catch (error) {
+    console.error('Error fetching posts:', error);
+    res.status(500).json({ message: 'Error fetching posts' });
+  }
+});
+
+
+
+
 app.listen(port, () => {
   console.log(`Server is listening at http://localhost:${port}`);
 });

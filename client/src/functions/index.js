@@ -30,8 +30,11 @@ export function useCurrentUser() {
                     loading: false
                 });
             } catch (error) {
-                console.error('Error fetching user data:', error);
-                // Handle errors gracefully
+                setCurrentUser({
+                    isAuthenticated: false,
+                    user: null,
+                    loading: false
+                });
             }
         };
 
