@@ -1,0 +1,28 @@
+.notification-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .notifications {
+    width: 300px; /* Adjust as needed */
+  }
+  
+  .notification {
+    padding: 10px;
+    margin-bottom: 5px;
+    border-radius: 5px;
+  }
+  
+  .friend-request {
+    background-color: #f0f0f0;
+  }
+  
+  .liked {
+    background-color: #e6f7ff;
+  }
+  
+  .commented {
+    background-color: #f5e6ff;
+  }
+  

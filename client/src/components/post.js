@@ -5,6 +5,7 @@ import axios from 'axios';
 import Moment from 'react-moment';
 import moment from 'moment';
 import { useCurrentUser } from '../functions';
+import { Link } from 'react-router-dom';
 
 const Post = ({ post, userId, userName, fetchPostsByUserId, fetchPosts, fromHome }) => {
   const [isLike, setIsLike] = useState(false)
@@ -70,7 +71,7 @@ const Post = ({ post, userId, userName, fetchPostsByUserId, fetchPosts, fromHome
           {fromHome && (
             <div style={{display:"flex",alignItems:"center"}}>
               <img style={{width:40,height:40}} src={'https://i.pinimg.com/736x/dc/3d/ef/dc3defd9307e2fda14dc377691be1c62.jpg'} alt="profile" className="profile-pic" />
-              <h3 style={{ margin: "unset" }}>{post.postOwnerName}</h3>
+              <Link to={`/profile/${post.userId}`}><h3 style={{ margin: "unset" }}>{post.postOwnerName}</h3></Link>
             </div>
           )}
           <p style={{ color: "#c3c3c3", margin: "unset" }}>

@@ -6,6 +6,7 @@ import ChatListing from './chat-listing';
 import Posts from "./postlisting";
 import Post from '../components/post';
 import { useCurrentUser } from '../functions';
+import NotificationLists from './notifications';
 
 function Home() {
     
@@ -34,7 +35,8 @@ const fetchPosts = React.useCallback(async () => {
     return (
         <div className="home-content-wrapper">
             <div className="chat-notification-area">
-                <ChatListing />
+                {/* <ChatListing /> */}
+                <NotificationLists/>
             </div>
             <div className='posts-area'>
                 {posts.map((post,index)=>{

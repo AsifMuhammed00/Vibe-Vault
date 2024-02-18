@@ -101,7 +101,7 @@ app.post('/api/register-user', async (req, res) => {
       email,
       password: hashedPassword,
       roles,
-      friends:[]
+      friends: []
     });
 
     await client.close();
@@ -251,8 +251,10 @@ app.post('/api/send-req', async (req, res) => {
   try {
     const { db, client } = await connectDB();
     const requestCollection = db.collection('requests');
+    const notificationCollection = db.collection('notifications');
 
     const { to, from, status } = req.body;
+    console.log("Asif11")
 
 
     const existingItem = await requestCollection.findOne({ to, from });
@@ -280,6 +282,17 @@ app.post('/api/send-req', async (req, res) => {
 
       await requestCollection.updateOne(filter, update, options);
     }
+
+
+    await notificationCollection.insertOne({
+      from,
+      to,
+      type: "friend-request",
+      createdAt: moment().valueOf(),
+      readInfo: false,
+      contextId: null
+    });
+
     await client.close();
     res.status(200).send('Request sent!');
   } catch (error) {
@@ -454,18 +467,19 @@ app.get('/api/get-recent-posts/:userId', async (req, res) => {
 
 
     const user = await userCollection.findOne({ _id: new ObjectId(userId) });
-    let userIds = user.friends
+    let userIds = []
+    userIds = user.friends || []
     userIds.push(userId)
 
-    const posts = await postCollection.find({ userId: { $in: userIds} }).sort({ createdAt: -1 }).toArray();
+    const posts = await postCollection.find({ userId: { $in: userIds } }).sort({ createdAt: -1 }).toArray();
 
     const postWithOwnerNames = await Promise.all(posts.map(async (post) => {
       const postOwner = await userCollection.findOne({ _id: new ObjectId(post.userId) });
       return {
-          ...post,
-          postOwnerName: postOwner.name
+        ...post,
+        postOwnerName: postOwner.name
       };
-  }));
+    }));
 
     await client.close();
 
@@ -476,6 +490,54 @@ app.get('/api/get-recent-posts/:userId', async (req, res) => {
   }
 });
 
+app.get('/api/get-recent-notifications/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { db, client } = await connectDB();
+    const userCollection = db.collection('users');
+    const notificationCollection = db.collection("notifications")
+    const postCollection = db.collection("posts")
+
+    const notifications = await notificationCollection.find({ to: userId }).toArray();
+
+    const formattedNotifications = await Promise.all(notifications.map(async notification => {
+
+      let fromUser = await userCollection.findOne({ _id: new ObjectId(notification.from) });
+      console.log("fromUser", fromUser)
+
+      let message = '';
+      let type = ''
+      let time = notification.createdAt
+      let senderName
+      let senderId
+
+      if (!fromUser) {
+        message = 'Unknown user sent you a notification';
+      } else {
+        senderName = fromUser.name,
+          senderId = notification.from
+        if (notification.type === 'friend-request') {
+          message = `sent you a friend request`;
+          type = 'friend-request'
+        } else if (notification.type === 'like') {
+          let post = await postCollection.findOne({ _id: new ObjectId(notification.contextId) });
+          if (!post) {
+            message = `liked a post (post not found)`;
+          } else {
+            message = `liked your post "${post.postContent}"`;
+            type = 'like'
+          }
+        }
+      }
+      return { message, type, time, senderName, senderId };
+    }));
+    await client.close();
+    res.json(formattedNotifications);
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({ message: 'Error fetching notifications' });
+  }
+});
 
 
 
