@@ -4,6 +4,7 @@ p{
 .navigation-wrapper{
     display: flex;
     flex-direction: column;
+    padding-bottom: 60px;
 }
 .each-notification{
     min-height: 60px;

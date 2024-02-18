@@ -41,7 +41,7 @@ const Post = ({ post, userId, userName, fetchPostsByUserId, fetchPosts, fromHome
     setIsLike(!isLike)
     try {
       await axios.post('http://localhost:3001/api/like-unlike', {
-        userId: current?.user?._id,
+        userId,
         postId: post._id,
         isLike,
         postOwnerId : post.userId,

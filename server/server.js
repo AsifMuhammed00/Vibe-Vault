@@ -191,14 +191,16 @@ app.post('/api/like-unlike', async (req, res) => {
         { $push: { likes: userId } }
       );
 
-    await notificationCollection.insertOne({
-      from : userId ,
-      to :  postOwnerId,
-      type: "like",
-      createdAt: moment().valueOf(),
-      readInfo: false,
-      contextId: postId
-    });
+      if(userId !== postOwnerId ){
+        await notificationCollection.insertOne({
+          from : userId ,
+          to :  postOwnerId,
+          type: "like",
+          createdAt: moment().valueOf(),
+          readInfo: false,
+          contextId: postId
+        });    
+      }
 
     } else {
       await postCollection.updateOne(
@@ -210,6 +212,7 @@ app.post('/api/like-unlike', async (req, res) => {
         from : userId ,
         to :  postOwnerId,
         type: "like",
+        contextId: postId
       });
     }
 
@@ -299,8 +302,6 @@ app.post('/api/send-req', async (req, res) => {
 
       await requestCollection.updateOne(filter, update, options);
     }
-
-
     await notificationCollection.insertOne({
       from,
       to,
@@ -358,7 +359,7 @@ app.delete('/api/cancel-requests/:userId/:requestedUserId', async (req, res) => 
      await notificationCollection.deleteMany({
       from: requestedUserId,
       to: userId,
-      type: "friend-request"
+      type: "friend-request",
     });
 
     await client.close();
@@ -406,9 +407,11 @@ app.post('/api/accept-req', async (req, res) => {
     const { db, client } = await connectDB();
     const requestCollection = db.collection('requests');
     const userCollection = db.collection('users');
+    const notificationCollection = db.collection('notifications');
+
 
     const { userId, requestedUserId } = req.body;
-
+    
     const filter = {
       to: requestedUserId,
       from: userId,
@@ -437,6 +440,16 @@ app.post('/api/accept-req', async (req, res) => {
       { _id: new ObjectId(userId) },
       { $push: { friends: requestedUserId } }
     );
+
+ 
+    await notificationCollection.insertOne({
+      from: requestedUserId,
+      to: userId,
+      type: "accepted-friend-req",
+      createdAt: moment().valueOf(),
+      readInfo: false,
+      contextId: null
+    });
 
     await client.close();
     res.status(200).send('Operation completed successfully.');
@@ -533,16 +546,18 @@ app.get('/api/get-recent-notifications/:userId', async (req, res) => {
       let senderName
       let senderId
       let readInfo
+      let notificationId
 
       if (!fromUser) {
         message = 'Unknown user sent you a notification';
       } else {
-        senderName = fromUser.name,
-          senderId = notification.from,
           readInfo = notification.readInfo
+          notificationId = notification._id
         if (notification.type === 'friend-request') {
           message = `sent you a friend request`;
           type = 'friend-request'
+          senderName = fromUser.name,
+          senderId = notification.from
         } else if (notification.type === 'like') {
           let post = await postCollection.findOne({ _id: new ObjectId(notification.contextId) });
           if (!post) {
@@ -550,10 +565,17 @@ app.get('/api/get-recent-notifications/:userId', async (req, res) => {
           } else {
             message = `liked your post "${post.postContent}"`;
             type = 'like'
+            senderName = fromUser.name,
+            senderId = notification.from
           }
+        } else if(notification.type === 'accepted-friend-req'){
+          message = `accepted your friend request`;
+          type = 'accepted-friend-req'
+          senderName = fromUser.name,
+          senderId = notification.from
         }
       }
-      return { message, type, time, senderName, senderId };
+      return { message, type, time, senderName, senderId, readInfo,notificationId };
     }));
     await client.close();
     res.json(formattedNotifications);
@@ -563,7 +585,41 @@ app.get('/api/get-recent-notifications/:userId', async (req, res) => {
   }
 });
 
+app.post('/api/update-read-data', async (req, res) => {
+  try {
+    const { db, client } = await connectDB();
+    const notificationCollection = db.collection('notifications');
 
+    const { unreadedIds } = req.body;
+
+    await notificationCollection.updateMany(
+      { _id: { $in: unreadedIds.map(id => new ObjectId(id)) } }, 
+      { $set: { "readInfo": true} } 
+   )
+    await client.close();
+    res.status(200).send('Operation completed successfully.');
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ message: 'Error' });
+  }
+});
+
+app.get('/api/get-unread-notification-count/:userId', async (req, res) => {
+  try {
+    const { db, client } = await connectDB();
+    const notificationCollection = db.collection('notifications');
+
+    const { userId } = req.params;
+
+    const count = await notificationCollection.countDocuments({ readInfo: false, to: userId });
+
+    await client.close();
+    res.json(count);
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ message: 'Error' });
+  }
+});
 
 app.listen(port, () => {
   console.log(`Server is listening at http://localhost:${port}`);

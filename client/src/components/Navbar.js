@@ -9,6 +9,8 @@ const Header = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [users, setUsers] = React.useState([])
+  const [unreadNotificationCount, setUnreadNotificationCount] = React.useState()
+
 
   const navigate = useNavigate();
   const current = useCurrentUser();
@@ -29,9 +31,23 @@ const Header = () => {
     }
   }, [searchTerm]);
 
+  const getNotificationCount= useCallback(async () => {
+      try {
+        await axios.get(`/api/get-unread-notification-count/${current?.user?._id}`).then((res) => {
+          setUnreadNotificationCount(res.data)
+        });
+      } catch (error) {
+        console.error('Error fetching results', error.message);
+      }
+  }, [current]);
+
   React.useEffect(() => {
     getSearchResults()
   }, [searchTerm])
+
+  React.useEffect(() => {
+    getNotificationCount()
+  }, [current])
 
   const handleSearchChange = (event) => {
     setSearchTerm(event.target.value);
@@ -45,6 +61,9 @@ const Header = () => {
   return (
     <header className="app-header">
       <div className="header-left">
+        {unreadNotificationCount > 0 &&(
+          <span className="badge">{unreadNotificationCount}</span>
+        )}
         <i className="material-icons"><Link to={'/?notification'}>Notifications</Link></i>
         <span className="badge">2</span>
         <i className="material-icons"><Link to={'/?chat'}>Chat</Link></i>

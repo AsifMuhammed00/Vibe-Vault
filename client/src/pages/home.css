@@ -9,6 +9,7 @@
     width: 300px;
     border-right: 1px solid;
     height: 100%;
+    overflow: auto;
 
     /* height: 100vh; */
     /* left: 240px; */
@@ -17,7 +18,6 @@
       /* position: fixed; */
       /* left: 520px; */
       /* height: 100vh; */
-      margin-left: 300px;
       flex: 3;
       padding: 60px 40px;
   }

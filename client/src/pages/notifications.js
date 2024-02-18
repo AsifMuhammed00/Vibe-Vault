@@ -2,8 +2,10 @@ import "./notification.css"
 import React from 'react';
 import axios from 'axios';
 import { useCurrentUser } from '../functions';
-import { useNavigate } from "react-router-dom";
+import { useNavigate,useLocation } from "react-router-dom";
 import Requests from "../components/requests";
+import io from 'socket.io-client';
+
 
 const Notification = ({ notification, index, requestedUsers }) => {
     const [friendReq, setFriendReq] = React.useState([])
@@ -24,21 +26,22 @@ const Notification = ({ notification, index, requestedUsers }) => {
         }
     }, [requestedUsers, notification])
 
+
     return (
-        <div className="each-notification" key={index}>
+        <div className="each-notification" key={index} style={{background: notification.readInfo ? "white" : "rgb(228, 228, 228)"}}>
             <div className="notification-details-section">
-            <div style={{ flex: 1 }}>
-                <img onClick={() => { handleNavigation() }} style={{ width: 30, height: 30 }} src={'https://i.pinimg.com/736x/dc/3d/ef/dc3defd9307e2fda14dc377691be1c62.jpg'} alt={"dp"} className="profile-pic" />
-            </div>
-            <div style={{ flex: 6 }}>
-                <p onClick={() => { handleNavigation() }}><b>{notification.senderName}</b>{" "}{notification.message}</p>
-            </div>
+                <div style={{ flex: 1 }}>
+                    <img onClick={() => { handleNavigation() }} style={{ width: 30, height: 30 }} src={'https://i.pinimg.com/736x/dc/3d/ef/dc3defd9307e2fda14dc377691be1c62.jpg'} alt={"dp"} className="profile-pic" />
+                </div>
+                <div style={{ flex: 6 }}>
+                    <p onClick={() => { handleNavigation() }}><b>{notification.senderName}</b>{" "}{notification.message}</p>
+                </div>
             </div>
             {notification.type === "friend-request" && (
                 friendReq.map((user) => {
                     return (
-                        <div style={{display:"block"}}>
-                            <Requests user={user} currentUser={current?.user?._id} fromNotification={true}/>
+                        <div style={{ display: "block" }}>
+                            <Requests user={user} currentUser={current?.user?._id} fromNotification={true} />
                         </div>
                     )
                 })
@@ -54,6 +57,8 @@ function NotificationLists() {
     const userId = current?.user?._id;
     const [notifications, setNotifications] = React.useState([])
     const [requestedUsers, setRequestedUsers] = React.useState([])
+
+    const location = useLocation()
 
     const fetchNotifications = React.useCallback(async () => {
         if (userId) {
@@ -78,6 +83,31 @@ function NotificationLists() {
         }
     }, [current]);
 
+    const unreadedIds = React.useMemo(() => {
+        if (notifications.length > 0) {
+            const unreadedNotifications = notifications.filter((n) => {
+                return n.readInfo === false
+            })
+
+            const ids = unreadedNotifications.map((n) => {
+                return n.notificationId
+            })
+            return ids
+        }
+    }, [notifications])
+
+
+      const handleUpdateReadData = React.useCallback(async () => {
+        try {
+          await await axios.post('/api/update-read-data', {
+            unreadedIds
+          }).then((res) => {
+          });
+        } catch (error) {
+          console.error('Error', error.message);
+        }
+      }, [unreadedIds]);
+
     React.useEffect(() => {
         if (current?.user?._id) {
             getRequests()
@@ -88,7 +118,11 @@ function NotificationLists() {
         fetchNotifications()
     }, [userId])
 
-    console.log("requestedUsers", requestedUsers)
+    React.useEffect(() => {
+        if(unreadedIds?.length > 0){
+        handleUpdateReadData()
+        }
+    }, [unreadedIds])
 
     return (
         <div className="navigation-wrapper">
