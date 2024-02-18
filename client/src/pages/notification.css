@@ -1,28 +1,20 @@
-.notification-area {
+p{
+    margin: unset;
+}
+.navigation-wrapper{
     display: flex;
     flex-direction: column;
-    align-items: center;
-  }
-  
-  .notifications {
-    width: 300px; /* Adjust as needed */
-  }
-  
-  .notification {
+}
+.each-notification{
+    min-height: 60px;
+    max-height: 100px;
+    background-color: rgb(228, 228, 228);
     padding: 10px;
-    margin-bottom: 5px;
-    border-radius: 5px;
-  }
-  
-  .friend-request {
-    background-color: #f0f0f0;
-  }
-  
-  .liked {
-    background-color: #e6f7ff;
-  }
-  
-  .commented {
-    background-color: #f5e6ff;
-  }
-  
+    border-bottom: 1px solid rgb(175, 175, 175);
+    cursor: pointer;
+}
+.notification-details-section{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+}

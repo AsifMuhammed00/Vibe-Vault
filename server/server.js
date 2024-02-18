@@ -180,19 +180,37 @@ app.post('/api/like-unlike', async (req, res) => {
   try {
     const { db, client } = await connectDB();
     const postCollection = db.collection('posts');
+    const notificationCollection = db.collection('notifications');
 
-    const { userId, postId, isLike, userName } = req.body;
+
+    const { userId, postId, isLike, postOwnerId } = req.body;
 
     if (!isLike) {
       await postCollection.updateOne(
         { _id: new ObjectId(postId) },
-        { $push: { likes: { userId: userId, userName: userName } } }
+        { $push: { likes: userId } }
       );
+
+    await notificationCollection.insertOne({
+      from : userId ,
+      to :  postOwnerId,
+      type: "like",
+      createdAt: moment().valueOf(),
+      readInfo: false,
+      contextId: postId
+    });
+
     } else {
       await postCollection.updateOne(
         { _id: new ObjectId(postId) },
-        { $pull: { likes: { userId: userId } } }
+        { $pull: { likes:  userId} }
       );
+
+      await notificationCollection.deleteMany({
+        from : userId ,
+        to :  postOwnerId,
+        type: "like",
+      });
     }
 
     await client.close();
@@ -254,7 +272,6 @@ app.post('/api/send-req', async (req, res) => {
     const notificationCollection = db.collection('notifications');
 
     const { to, from, status } = req.body;
-    console.log("Asif11")
 
 
     const existingItem = await requestCollection.findOne({ to, from });
@@ -331,10 +348,17 @@ app.delete('/api/cancel-requests/:userId/:requestedUserId', async (req, res) => 
 
     const { db, client } = await connectDB();
     const requestCollection = db.collection('requests');
+    const notificationCollection = db.collection('notifications');
 
     const result = await requestCollection.deleteOne({
       from: requestedUserId,
       to: userId
+    });
+
+     await notificationCollection.deleteMany({
+      from: requestedUserId,
+      to: userId,
+      type: "friend-request"
     });
 
     await client.close();
@@ -366,8 +390,7 @@ app.get('/api/get-reqs/:userId', async (req, res) => {
     const userIds = result.map((r) => {
       return new ObjectId(r.from)
     })
-
-    const items = await userCollection.find({ _id: { $in: userIds } }).toArray();
+    const items = await userCollection.find({ _id: { $in: userIds } }, { projection: { password: 0, roles: 0 } }).toArray();
 
     await client.close();
     res.json(items);
@@ -498,24 +521,25 @@ app.get('/api/get-recent-notifications/:userId', async (req, res) => {
     const notificationCollection = db.collection("notifications")
     const postCollection = db.collection("posts")
 
-    const notifications = await notificationCollection.find({ to: userId }).toArray();
+    const notifications = await notificationCollection.find({ to: userId }).sort({ createdAt: -1 }).toArray();
 
     const formattedNotifications = await Promise.all(notifications.map(async notification => {
 
       let fromUser = await userCollection.findOne({ _id: new ObjectId(notification.from) });
-      console.log("fromUser", fromUser)
 
       let message = '';
       let type = ''
       let time = notification.createdAt
       let senderName
       let senderId
+      let readInfo
 
       if (!fromUser) {
         message = 'Unknown user sent you a notification';
       } else {
         senderName = fromUser.name,
-          senderId = notification.from
+          senderId = notification.from,
+          readInfo = notification.readInfo
         if (notification.type === 'friend-request') {
           message = `sent you a friend request`;
           type = 'friend-request'

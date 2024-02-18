@@ -44,6 +44,7 @@ const Post = ({ post, userId, userName, fetchPostsByUserId, fetchPosts, fromHome
         userId: current?.user?._id,
         postId: post._id,
         isLike,
+        postOwnerId : post.userId,
         userName
       });
       getPostInfo()
@@ -59,7 +60,7 @@ const Post = ({ post, userId, userName, fetchPostsByUserId, fetchPosts, fromHome
 
   React.useEffect(() => {
     const isLikedPost = postInfo?.likes.find((p) => {
-      return p.userId === current?.user?._id
+      return p === current?.user?._id
     })
     setIsLike(Boolean(isLikedPost))
   }, [postInfo])
