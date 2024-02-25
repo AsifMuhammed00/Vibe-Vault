@@ -28,7 +28,7 @@ const io = require('socket.io')(server, {
   cors: {
     origin: "http://localhost:3000",
     methods: ["GET", "POST"]
-  }
+  },
 });
 
 async function getNotifications(userId) {
@@ -86,18 +86,59 @@ async function getNotifications(userId) {
 async function getUnreadNotificationCount(userId) {
   const { db, client } = await connectDB();
   const notificationCollection = db.collection('notifications');
-
   const count = await notificationCollection.countDocuments({ readInfo: false, to: userId });
   await client.close();
   return count;
 }
 
 var users = [];
+
 io.sockets.on('connection', function (socket) {
 
   socket.on('connected', function (userId) {
     users[userId] = socket.id;
   });
+
+  socket.on('join-chat', (roomId) => {
+    socket.join(roomId);
+  });
+
+  socket.on('userTyping', ({ roomId, userId }) => {
+    console.log("www",roomId,userId)
+    socket.to(roomId).emit('typing', { senderId: userId });
+});
+
+  socket.on('send-msg',async function (data)  {
+    try {
+      const { db, client } = await connectDB();
+      const messageCollection = db.collection('messages');
+  
+      const { senderId, recieverId, msg, roomId } = data;
+  
+      const result = await messageCollection.insertOne({
+        senderId,
+        recieverId,
+        msg,
+        seenInfo: false,
+        createdAt: moment().valueOf(),
+        hasEdited:false
+      });
+
+     const getlatestmsg = await messageCollection.findOne({$or: [
+        { recieverId : senderId, senderId: recieverId },
+        { senderId, recieverId }
+    ]}, {sort: {createdAt: -1}})
+      await client.close();
+      // if (senderId !== userId) {
+        io.to(roomId).emit('getLatestMsg', getlatestmsg);
+    // }
+      // res.json({ message: 'Message sent successfully!', insertedId: result.insertedId });
+    } catch (error) {
+      console.error('Error sending message:', error);
+      // res.status(500).json({ message: 'Error sending message' });
+    }
+  });
+
 
   socket.on('sendReq', async function (data) {
     try {
@@ -296,6 +337,13 @@ io.sockets.on('connection', function (socket) {
       // res.status(500).json({ message: 'Error' });
     }
   })
+
+  socket.on('leave-chat', (roomId) => {
+    socket.leave(roomId);
+  });
+  // socket.on('disconnect', () => {
+  //   console.log('User disconnected:', socket.id);
+  // });
 });
 
 
@@ -325,6 +373,62 @@ app.get('/api/user', verifyToken, async (req, res) => {
 
   res.json({ user });
 });
+
+app.post('/api/send-msg', async (req, res) => {
+  try {
+    const { db, client } = await connectDB();
+    const messageCollection = db.collection('messages');
+
+    const { senderId, recieverId, msg } = req.body;
+
+    const result = await messageCollection.insertOne({
+      senderId,
+      recieverId,
+      msg,
+      seenInfo: false,
+      createdAt: moment().valueOf(),
+      hasEdited:false
+    });
+
+    await client.close();
+
+    res.json({ message: 'Message sent successfully!', insertedId: result.insertedId });
+  } catch (error) {
+    console.error('Error sending message:', error);
+    res.status(500).json({ message: 'Error sending message' });
+  }
+});
+
+app.get('/api/get-msgs/:senderId/:recieverId/:fromRoom', async (req, res) => {
+  try {
+    const { db, client } = await connectDB();
+    const messageCollection = db.collection('messages');
+
+    const { senderId,recieverId,fromRoom } = req.params;
+
+    let result
+    if(fromRoom === 'false'){
+       result = await messageCollection.find({
+        $or: [
+          { recieverId : senderId, senderId: recieverId },
+          { senderId, recieverId }
+      ]
+      }).toArray();
+    } else{
+      result = await messageCollection.findOne({$or: [
+        { recieverId : senderId, senderId: recieverId },
+        { senderId, recieverId }
+    ]}, {sort: {createdAt: -1}})
+    }
+
+    await client.close();
+    res.json({ message: 'Messages fetched',messages:result });
+  } catch (error) {
+    console.error('Error fetching message:', error);
+    res.status(500).json({ message: 'Error fetching message' });
+  }
+});
+
 
 
 app.post('/api/login', async (req, res) => {
