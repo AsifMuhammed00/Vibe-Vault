@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCurrentUser } from '../functions';
+import { io } from 'socket.io-client';
 
 
 const Results = ({ currentUser, user, requestedUsers, incomingRequests, friends }) => {
@@ -12,16 +13,16 @@ const Results = ({ currentUser, user, requestedUsers, incomingRequests, friends 
 
   const [isAccepted, setIsAccepted] = React.useState(false)
   const [isAlreadyFriend, setIsAlreadyFriend] = React.useState(false)
+  const socket = io.connect('http://localhost:3001');
+
 
 
   const handleReqAccept = useCallback(async () => {
     setIsAccepted(true)
     try {
-      await await axios.post('/api/accept-req', {
+      socket.emit('accept-req', {
         userId: user._id,
         requestedUserId: currentUser,
-      }).then((res) => {
-
       });
     } catch (error) {
       setIsAccepted(false)
@@ -31,25 +32,25 @@ const Results = ({ currentUser, user, requestedUsers, incomingRequests, friends 
 
 
   const handleSendRequest = useCallback(async () => {
-    setIsReqSent(true)
+    setIsReqSent(true);
     try {
-      await await axios.post('/api/send-req', {
+      socket.emit('sendReq', {
         to: user._id,
         from: currentUser,
         status: "Requested"
-      }).then((res) => {
-
       });
     } catch (error) {
-      setIsReqSent(false)
+      setIsReqSent(false);
       console.error('Error', error.message);
     }
-  }, [currentUser]);
+  }, [user, currentUser]);
 
   const cancelRequest = useCallback(async () => {
     setIsReqSent(false)
     try {
-      await await axios.delete(`/api/cancel-requests/${user._id}/${currentUser}`).then((res) => {
+      socket.emit('cancel-req', {
+        userId: user.id,
+        requestedUserId: currentUser
       });
     } catch (error) {
       console.error('Error', error.message);
@@ -77,9 +78,9 @@ const Results = ({ currentUser, user, requestedUsers, incomingRequests, friends 
       setIsAlreadyFriend(true)
     }
 
-  }, [requestedUsers, incomingRequests,friends])
+  }, [requestedUsers, incomingRequests, friends])
 
-  console.log("isAlreadyFriend",isAlreadyFriend)
+  console.log("isAlreadyFriend", isAlreadyFriend)
 
 
   return (
@@ -90,7 +91,7 @@ const Results = ({ currentUser, user, requestedUsers, incomingRequests, friends 
 
         {isAlreadyFriend ? (
           <h4>Friend</h4>
-        ):(
+        ) : (
           isRequestedUser ? (
             <button
               className="request-button"

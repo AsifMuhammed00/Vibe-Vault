@@ -8,6 +8,10 @@ const port = 3001;
 const bodyParser = require('body-parser');
 const jwt = require('jsonwebtoken');
 const moment = require('moment')
+const http = require('http');
+const server = http.createServer(app);
+
+// const io = socketIo(server);
 
 const { ObjectId } = require('mongodb');
 
@@ -19,6 +23,281 @@ app.use(cors());
 
 const { connectDB } = require('./db');
 const secretKey = '7f8a118b03e81e37c1733d5b27db0a28f29999e91d0b03a417a50586e7260c2d ';
+
+const io = require('socket.io')(server, {
+  cors: {
+    origin: "http://localhost:3000",
+    methods: ["GET", "POST"]
+  }
+});
+
+async function getNotifications(userId) {
+  const { db, client } = await connectDB();
+  const userCollection = db.collection('users');
+  const notificationCollection = db.collection("notifications")
+  const postCollection = db.collection("posts")
+
+  const notifications = await notificationCollection.find({ to: userId }).sort({ createdAt: -1 }).toArray();
+
+  const formattedNotifications = await Promise.all(notifications.map(async notification => {
+
+    let fromUser = await userCollection.findOne({ _id: new ObjectId(notification.from) });
+
+    let message = '';
+    let type = ''
+    let time = notification.createdAt
+    let senderName
+    let senderId
+    let readInfo
+    let notificationId
+
+    if (!fromUser) {
+      message = 'Unknown user sent you a notification';
+    } else {
+      readInfo = notification.readInfo
+      notificationId = notification._id
+      if (notification.type === 'friend-request') {
+        message = `sent you a friend request`;
+        type = 'friend-request'
+        senderName = fromUser.name,
+          senderId = notification.from
+      } else if (notification.type === 'like') {
+        let post = await postCollection.findOne({ _id: new ObjectId(notification.contextId) });
+        if (!post) {
+          message = `liked a post (post not found)`;
+        } else {
+          message = `liked your post "${post.postContent}"`;
+          type = 'like'
+          senderName = fromUser.name,
+            senderId = notification.from
+        }
+      } else if (notification.type === 'accepted-friend-req') {
+        message = `accepted your friend request`;
+        type = 'accepted-friend-req'
+        senderName = fromUser.name,
+          senderId = notification.from
+      }
+    }
+    return { message, type, time, senderName, senderId, readInfo, notificationId };
+  }));
+  await client.close();
+  return formattedNotifications;
+}
+async function getUnreadNotificationCount(userId) {
+  const { db, client } = await connectDB();
+  const notificationCollection = db.collection('notifications');
+
+  const count = await notificationCollection.countDocuments({ readInfo: false, to: userId });
+  await client.close();
+  return count;
+}
+
+var users = [];
+io.sockets.on('connection', function (socket) {
+
+  socket.on('connected', function (userId) {
+    users[userId] = socket.id;
+  });
+
+  socket.on('sendReq', async function (data) {
+    try {
+      const { db, client } = await connectDB();
+      const requestCollection = db.collection('requests');
+      const notificationCollection = db.collection('notifications');
+
+      const { to, from, status } = data;
+
+      const existingItem = await requestCollection.findOne({ to, from });
+      if (!existingItem) {
+        await requestCollection.insertOne({
+          to,
+          from,
+          status
+        });
+      } else {
+        const filter = {
+          to,
+          from,
+        };
+
+        const update = {
+          $set: {
+            status: "Requested"
+          }
+        };
+
+        const options = {
+          upsert: false
+        };
+
+        await requestCollection.updateOne(filter, update, options);
+      }
+      await notificationCollection.insertOne({
+        from,
+        to,
+        type: "friend-request",
+        createdAt: moment().valueOf(),
+        readInfo: false,
+        contextId: null
+      });
+
+      await client.close();
+      const notifications = await getNotifications(to)
+      const notificationCount = await getUnreadNotificationCount(to)
+
+      io.sockets.to(users[to]).emit('unreadNotificationCount', { notificationCount });
+      io.sockets.to(users[to]).emit('notifications', { notifications });
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  });
+
+  socket.on('like-unlike', async function (data) {
+    try {
+      const { db, client } = await connectDB();
+      const postCollection = db.collection('posts');
+      const notificationCollection = db.collection('notifications');
+
+
+      const { userId, postId, isLike, postOwnerId } = data
+
+      if (!isLike) {
+        await postCollection.updateOne(
+          { _id: new ObjectId(postId) },
+          { $push: { likes: userId } }
+        );
+
+        if (userId !== postOwnerId) {
+          await notificationCollection.insertOne({
+            from: userId,
+            to: postOwnerId,
+            type: "like",
+            createdAt: moment().valueOf(),
+            readInfo: false,
+            contextId: postId
+          });
+        }
+
+      } else {
+        await postCollection.updateOne(
+          { _id: new ObjectId(postId) },
+          { $pull: { likes: userId } }
+        );
+
+        await notificationCollection.deleteMany({
+          from: userId,
+          to: postOwnerId,
+          type: "like",
+          contextId: postId
+        });
+      }
+
+      await client.close();
+      if (userId !== postOwnerId) {
+        const notifications = await getNotifications(postOwnerId)
+        io.sockets.to(users[postOwnerId]).emit('notifications', { notifications });
+      }
+      // res.status(200).send('Operation completed successfully.');
+    } catch (error) {
+      console.error('Error:', error);
+      // res.status(500).json({ message: 'Error' });
+    }
+  })
+
+  socket.on('cancel-req', async function (data) {
+    try {
+      const { userId, requestedUserId } = data;
+
+      const { db, client } = await connectDB();
+      const requestCollection = db.collection('requests');
+      const notificationCollection = db.collection('notifications');
+
+      const result = await requestCollection.deleteOne({
+        from: requestedUserId,
+        to: userId
+      });
+
+      await notificationCollection.deleteMany({
+        from: requestedUserId,
+        to: userId,
+        type: "friend-request",
+      });
+
+      await client.close();
+
+      if (result.deletedCount === 1) {
+        // res.json({ message: 'request cancelled successfully' });
+        const notifications = await getNotifications(userId)
+        io.sockets.to(users[userId]).emit('notifications', { notifications })
+      } else {
+        // res.status(404).json({ message: 'req not found' });
+      }
+    } catch (error) {
+      console.error('Error', error);
+      // res.status(500).json({ message: 'Error' });
+    }
+  })
+
+  socket.on('accept-req', async function (data) {
+    try {
+      const { db, client } = await connectDB();
+      const requestCollection = db.collection('requests');
+      const userCollection = db.collection('users');
+      const notificationCollection = db.collection('notifications');
+
+
+      const { userId, requestedUserId } = data;
+
+      const filter = {
+        to: requestedUserId,
+        from: userId,
+        status: "Requested"
+      };
+
+      const update = {
+        $set: {
+          status: "Accepted"
+        }
+      };
+
+
+      const options = {
+        upsert: false
+      };
+
+      await requestCollection.updateOne(filter, update, options);
+
+      await userCollection.updateOne(
+        { _id: new ObjectId(requestedUserId) },
+        { $push: { friends: userId } }
+      );
+
+      await userCollection.updateOne(
+        { _id: new ObjectId(userId) },
+        { $push: { friends: requestedUserId } }
+      );
+
+
+      await notificationCollection.insertOne({
+        from: requestedUserId,
+        to: userId,
+        type: "accepted-friend-req",
+        createdAt: moment().valueOf(),
+        readInfo: false,
+        contextId: null
+      });
+
+      await client.close();
+      const notifications = await getNotifications(userId)
+      io.sockets.to(users[userId]).emit('notifications', { notifications })
+      // res.status(200).send('Operation completed successfully.');
+    } catch (error) {
+      console.error('Error:', error);
+      // res.status(500).json({ message: 'Error' });
+    }
+  })
+});
+
 
 const verifyToken = (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -191,26 +470,26 @@ app.post('/api/like-unlike', async (req, res) => {
         { $push: { likes: userId } }
       );
 
-      if(userId !== postOwnerId ){
+      if (userId !== postOwnerId) {
         await notificationCollection.insertOne({
-          from : userId ,
-          to :  postOwnerId,
+          from: userId,
+          to: postOwnerId,
           type: "like",
           createdAt: moment().valueOf(),
           readInfo: false,
           contextId: postId
-        });    
+        });
       }
 
     } else {
       await postCollection.updateOne(
         { _id: new ObjectId(postId) },
-        { $pull: { likes:  userId} }
+        { $pull: { likes: userId } }
       );
 
       await notificationCollection.deleteMany({
-        from : userId ,
-        to :  postOwnerId,
+        from: userId,
+        to: postOwnerId,
         type: "like",
         contextId: postId
       });
@@ -356,7 +635,7 @@ app.delete('/api/cancel-requests/:userId/:requestedUserId', async (req, res) => 
       to: userId
     });
 
-     await notificationCollection.deleteMany({
+    await notificationCollection.deleteMany({
       from: requestedUserId,
       to: userId,
       type: "friend-request",
@@ -411,7 +690,7 @@ app.post('/api/accept-req', async (req, res) => {
 
 
     const { userId, requestedUserId } = req.body;
-    
+
     const filter = {
       to: requestedUserId,
       from: userId,
@@ -441,7 +720,7 @@ app.post('/api/accept-req', async (req, res) => {
       { $push: { friends: requestedUserId } }
     );
 
- 
+
     await notificationCollection.insertOne({
       from: requestedUserId,
       to: userId,
@@ -526,58 +805,69 @@ app.get('/api/get-recent-posts/:userId', async (req, res) => {
   }
 });
 
+// app.get('/api/get-recent-notifications/:userId', async (req, res) => {
+//   try {
+//     const { userId } = req.params;
+//     const { db, client } = await connectDB();
+//     const userCollection = db.collection('users');
+//     const notificationCollection = db.collection("notifications")
+//     const postCollection = db.collection("posts")
+
+//     const notifications = await notificationCollection.find({ to: userId }).sort({ createdAt: -1 }).toArray();
+
+//     const formattedNotifications = await Promise.all(notifications.map(async notification => {
+
+//       let fromUser = await userCollection.findOne({ _id: new ObjectId(notification.from) });
+
+//       let message = '';
+//       let type = ''
+//       let time = notification.createdAt
+//       let senderName
+//       let senderId
+//       let readInfo
+//       let notificationId
+
+//       if (!fromUser) {
+//         message = 'Unknown user sent you a notification';
+//       } else {
+//           readInfo = notification.readInfo
+//           notificationId = notification._id
+//         if (notification.type === 'friend-request') {
+//           message = `sent you a friend request`;
+//           type = 'friend-request'
+//           senderName = fromUser.name,
+//           senderId = notification.from
+//         } else if (notification.type === 'like') {
+//           let post = await postCollection.findOne({ _id: new ObjectId(notification.contextId) });
+//           if (!post) {
+//             message = `liked a post (post not found)`;
+//           } else {
+//             message = `liked your post "${post.postContent}"`;
+//             type = 'like'
+//             senderName = fromUser.name,
+//             senderId = notification.from
+//           }
+//         } else if(notification.type === 'accepted-friend-req'){
+//           message = `accepted your friend request`;
+//           type = 'accepted-friend-req'
+//           senderName = fromUser.name,
+//           senderId = notification.from
+//         }
+//       }
+//       return { message, type, time, senderName, senderId, readInfo,notificationId };
+//     }));
+//     await client.close();
+//     res.json(formattedNotifications);
+//   } catch (error) {
+//     console.error('Error fetching notifications:', error);
+//     res.status(500).json({ message: 'Error fetching notifications' });
+//   }
+// });
+
 app.get('/api/get-recent-notifications/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    const { db, client } = await connectDB();
-    const userCollection = db.collection('users');
-    const notificationCollection = db.collection("notifications")
-    const postCollection = db.collection("posts")
-
-    const notifications = await notificationCollection.find({ to: userId }).sort({ createdAt: -1 }).toArray();
-
-    const formattedNotifications = await Promise.all(notifications.map(async notification => {
-
-      let fromUser = await userCollection.findOne({ _id: new ObjectId(notification.from) });
-
-      let message = '';
-      let type = ''
-      let time = notification.createdAt
-      let senderName
-      let senderId
-      let readInfo
-      let notificationId
-
-      if (!fromUser) {
-        message = 'Unknown user sent you a notification';
-      } else {
-          readInfo = notification.readInfo
-          notificationId = notification._id
-        if (notification.type === 'friend-request') {
-          message = `sent you a friend request`;
-          type = 'friend-request'
-          senderName = fromUser.name,
-          senderId = notification.from
-        } else if (notification.type === 'like') {
-          let post = await postCollection.findOne({ _id: new ObjectId(notification.contextId) });
-          if (!post) {
-            message = `liked a post (post not found)`;
-          } else {
-            message = `liked your post "${post.postContent}"`;
-            type = 'like'
-            senderName = fromUser.name,
-            senderId = notification.from
-          }
-        } else if(notification.type === 'accepted-friend-req'){
-          message = `accepted your friend request`;
-          type = 'accepted-friend-req'
-          senderName = fromUser.name,
-          senderId = notification.from
-        }
-      }
-      return { message, type, time, senderName, senderId, readInfo,notificationId };
-    }));
-    await client.close();
+    const formattedNotifications = await getNotifications(userId)
     res.json(formattedNotifications);
   } catch (error) {
     console.error('Error fetching notifications:', error);
@@ -593,9 +883,9 @@ app.post('/api/update-read-data', async (req, res) => {
     const { unreadedIds } = req.body;
 
     await notificationCollection.updateMany(
-      { _id: { $in: unreadedIds.map(id => new ObjectId(id)) } }, 
-      { $set: { "readInfo": true} } 
-   )
+      { _id: { $in: unreadedIds.map(id => new ObjectId(id)) } },
+      { $set: { "readInfo": true } }
+    )
     await client.close();
     res.status(200).send('Operation completed successfully.');
   } catch (error) {
@@ -606,14 +896,8 @@ app.post('/api/update-read-data', async (req, res) => {
 
 app.get('/api/get-unread-notification-count/:userId', async (req, res) => {
   try {
-    const { db, client } = await connectDB();
-    const notificationCollection = db.collection('notifications');
-
     const { userId } = req.params;
-
-    const count = await notificationCollection.countDocuments({ readInfo: false, to: userId });
-
-    await client.close();
+    const count = await getUnreadNotificationCount(userId)
     res.json(count);
   } catch (error) {
     console.error('Error:', error);
@@ -621,6 +905,6 @@ app.get('/api/get-unread-notification-count/:userId', async (req, res) => {
   }
 });
 
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`Server is listening at http://localhost:${port}`);
 });

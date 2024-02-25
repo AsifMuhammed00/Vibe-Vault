@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react
 import "./navbar.css"
 import axios from 'axios';
 import { useCurrentUser } from '../functions';
+import { io } from 'socket.io-client';
 
 const Header = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -14,7 +15,10 @@ const Header = () => {
 
   const navigate = useNavigate();
   const current = useCurrentUser();
+  const socket = io('http://localhost:3001');
+  const userId = current?.user?._id
 
+  socket.emit("connected",userId)
 
   const getSearchResults = useCallback(async () => {
     if (searchTerm) {
@@ -48,6 +52,10 @@ const Header = () => {
   React.useEffect(() => {
     getNotificationCount()
   }, [current])
+
+  socket.on("unreadNotificationCount", function (data) {
+    setUnreadNotificationCount(data.notificationCount)
+})
 
   const handleSearchChange = (event) => {
     setSearchTerm(event.target.value);

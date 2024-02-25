@@ -1,8 +1,8 @@
 import "./notification.css"
-import React from 'react';
+import React, { useEffect } from 'react';
 import axios from 'axios';
 import { useCurrentUser } from '../functions';
-import { useNavigate,useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Requests from "../components/requests";
 import io from 'socket.io-client';
 
@@ -28,7 +28,7 @@ const Notification = ({ notification, index, requestedUsers }) => {
 
 
     return (
-        <div className="each-notification" key={index} style={{background: notification.readInfo ? "white" : "rgb(228, 228, 228)"}}>
+        <div className="each-notification" key={index} style={{ background: notification.readInfo ? "white" : "rgb(228, 228, 228)" }}>
             <div className="notification-details-section">
                 <div style={{ flex: 1 }}>
                     <img onClick={() => { handleNavigation() }} style={{ width: 30, height: 30 }} src={'https://i.pinimg.com/736x/dc/3d/ef/dc3defd9307e2fda14dc377691be1c62.jpg'} alt={"dp"} className="profile-pic" />
@@ -59,6 +59,8 @@ function NotificationLists() {
     const [requestedUsers, setRequestedUsers] = React.useState([])
 
     const location = useLocation()
+    const socket = io('http://localhost:3001');
+    socket.emit("connected",userId)
 
     const fetchNotifications = React.useCallback(async () => {
         if (userId) {
@@ -96,17 +98,18 @@ function NotificationLists() {
         }
     }, [notifications])
 
+    console.log("notifications", notifications)
 
-      const handleUpdateReadData = React.useCallback(async () => {
+    const handleUpdateReadData = React.useCallback(async () => {
         try {
-          await await axios.post('/api/update-read-data', {
-            unreadedIds
-          }).then((res) => {
-          });
+            await axios.post('/api/update-read-data', {
+                unreadedIds
+            }).then((res) => {
+            });
         } catch (error) {
-          console.error('Error', error.message);
+            console.error('Error', error.message);
         }
-      }, [unreadedIds]);
+    }, [unreadedIds]);
 
     React.useEffect(() => {
         if (current?.user?._id) {
@@ -119,13 +122,19 @@ function NotificationLists() {
     }, [userId])
 
     React.useEffect(() => {
-        if(unreadedIds?.length > 0){
-        handleUpdateReadData()
+        if (unreadedIds?.length > 0) {
+            handleUpdateReadData()
         }
     }, [unreadedIds])
 
+    socket.on("notifications", function (data) {
+        setNotifications(data.notifications);
+        getRequests()
+    })
+
     return (
         <div className="navigation-wrapper">
+            {/* <button onClick={click}>Click me</button> */}
             {notifications.map((notification, index) => {
                 return (
                     <Notification notification={notification} index={index} requestedUsers={requestedUsers} />

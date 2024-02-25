@@ -5,13 +5,13 @@ function ContactList() {
         {
           id: 1,
           name: "John Doe",
-          avatar: "https://www.kindpng.com/picc/m/207-2074624_white-gray-circle-avatar-png-transparent-png.png",
+          avatar: "https://images.pexels.com/photos/674010/pexels-photo-674010.jpeg?cs=srgb&dl=pexels-anjana-c-674010.jpg&fm=jpg",
           status: "online",
         },
         {
           id: 2,
           name: "Jane Doe",
-          avatar: "https://www.kindpng.com/picc/m/207-2074624_white-gray-circle-avatar-png-transparent-png.png",
+          avatar: "https://images.pexels.com/photos/674010/pexels-photo-674010.jpeg?cs=srgb&dl=pexels-anjana-c-674010.jpg&fm=jpg",
           status: "offline",
         },
         // ...more contacts

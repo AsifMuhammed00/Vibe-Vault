@@ -6,11 +6,13 @@ import Moment from 'react-moment';
 import moment from 'moment';
 import { useCurrentUser } from '../functions';
 import { Link } from 'react-router-dom';
+import { io } from 'socket.io-client';
 
 const Post = ({ post, userId, userName, fetchPostsByUserId, fetchPosts, fromHome }) => {
   const [isLike, setIsLike] = useState(false)
   const [postInfo, setPostInfo] = useState()
   const current = useCurrentUser()
+  const socket = io.connect('http://localhost:3001');
 
   const deletePost = useCallback(async () => {
     try {
@@ -38,9 +40,9 @@ const Post = ({ post, userId, userName, fetchPostsByUserId, fetchPosts, fromHome
 
 
   const handleLikeUnlike = useCallback(async () => {
-    setIsLike(!isLike)
+    // setIsLike(!isLike)
     try {
-      await axios.post('http://localhost:3001/api/like-unlike', {
+      socket.emit('like-unlike', {
         userId,
         postId: post._id,
         isLike,
@@ -51,7 +53,7 @@ const Post = ({ post, userId, userName, fetchPostsByUserId, fetchPosts, fromHome
     } catch (error) {
       console.error(error.message);
     }
-  }, [post, userId, isLike]);
+  }, [post, userId, isLike,socket]);
 
   React.useEffect(() => {
     getPostInfo()

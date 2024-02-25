@@ -1,13 +1,14 @@
 // ProfilePage.js
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { useLocation,useParams } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import './user-profile.css';
 import { useCurrentUser } from '../functions/index';
 import axios from 'axios';
 import Moment from 'react-moment';
 import moment from 'moment';
 import Post from "../components/post"
+import { io } from 'socket.io-client';
 
 const ProfilePage = () => {
   const [posts, setPosts] = useState([]);
@@ -25,6 +26,8 @@ const ProfilePage = () => {
 
   const current = useCurrentUser();
   const { id } = useParams();
+  const socket = io.connect('http://localhost:3001');
+
 
   const handleOpen = () => {
     setIsOpen(true);
@@ -36,11 +39,11 @@ const ProfilePage = () => {
 
   const currentUserId = current?.user?._id
   const userId = React.useMemo(() => {
-      if (id) {
-          return id;
-      } else {
-          return currentUserId
-      }
+    if (id) {
+      return id;
+    } else {
+      return currentUserId
+    }
   }, [currentUserId, id])
 
   const getRequests = useCallback(async () => {
@@ -67,45 +70,59 @@ const ProfilePage = () => {
   const handleReqAccept = useCallback(async () => {
     setIsAccepted(true)
     try {
-      await await axios.post('/api/accept-req', {
+      socket.emit('accept-req', {
         userId,
         requestedUserId: currentUserId,
-      }).then((res) => {
-
       });
     } catch (error) {
       setIsAccepted(false)
       console.error('Error', error.message);
     }
-  }, [currentUserId,userId]);
+  }, [userId]);
 
+  // const handleSendRequest = useCallback(async () => {
+  //   setIsReqSent(true)
+  //   try {
+  //     await axios.post('/api/send-req', {
+  //       to: userId,
+  //       from: currentUserId,
+  //       status: "Requested"
+  //     }).then((res) => {
+  //       socket.emit('join', {recipientId : userId});
+
+  //     });
+  //   } catch (error) {
+  //     setIsReqSent(false)
+  //     console.error('Error', error.message);
+  //   }
+  // }, [currentUserId,userId]);
 
   const handleSendRequest = useCallback(async () => {
-    setIsReqSent(true)
+    setIsReqSent(true);
     try {
-      await await axios.post('/api/send-req', {
+      socket.emit('sendReq', {
         to: userId,
         from: currentUserId,
         status: "Requested"
-      }).then((res) => {
-
       });
     } catch (error) {
-      setIsReqSent(false)
+      setIsReqSent(false);
       console.error('Error', error.message);
     }
-  }, [currentUserId,userId]);
+  }, [currentUserId, userId]);
 
   const cancelRequest = useCallback(async () => {
     setIsReqSent(false)
     try {
-      await await axios.delete(`/api/cancel-requests/${userId}/${currentUserId}`).then((res) => {
+      socket.emit('cancel-req', {
+        userId,
+        requestedUserId: currentUserId
       });
     } catch (error) {
       console.error('Error', error.message);
       setIsReqSent(true)
     }
-  }, [currentUserId,userId]);
+  }, [currentUserId]);
 
   React.useEffect(() => {
     const alreadyRequested = requestedUsers.find((u) => {
@@ -120,44 +137,44 @@ const ProfilePage = () => {
     if (Boolean(incomingRequested)) {
       setRequestedUser(true)
     }
-  }, [requestedUsers, incomingRequests,current,userId])
+  }, [requestedUsers, incomingRequests, current, userId])
 
-  React.useEffect(()=>{
+  React.useEffect(() => {
     setIsAlreadyFriend(false)
     const isFriend = current?.user?.friends?.find((u) => {
       return u === userId
     })
 
-    console.log("isFriend",isFriend)
+    console.log("isFriend", isFriend)
     if (Boolean(isFriend)) {
       setIsAlreadyFriend(true)
     }
-  },[current?.user?.friends,userId])
+  }, [current?.user?.friends, userId])
 
   const fetchPostsByUserId = useCallback(async () => {
-    if(userId){
-    try {
-       await axios.get(`/api/posts/${userId}`).then((res)=>{
-      setPosts(res.data); 
+    if (userId) {
+      try {
+        await axios.get(`/api/posts/${userId}`).then((res) => {
+          setPosts(res.data);
 
-       });
-    } catch (error) {
-      console.error('Error fetching posts', error.message);
+        });
+      } catch (error) {
+        console.error('Error fetching posts', error.message);
+      }
     }
-  }
-  }, [userId]); 
+  }, [userId]);
 
   const getUserDetails = useCallback(async () => {
-    if(userId){
-    try {
-       await axios.get(`/api/get-user-info/${userId}`).then((res)=>{
-        setUserInfo(res.data); 
-       });
-    } catch (error) {
-      console.error('Error fetching posts', error.message);
+    if (userId) {
+      try {
+        await axios.get(`/api/get-user-info/${userId}`).then((res) => {
+          setUserInfo(res.data);
+        });
+      } catch (error) {
+        console.error('Error fetching posts', error.message);
+      }
     }
-  }
-  }, [userId]); 
+  }, [userId]);
 
   const handlePostSubmit = useCallback(async () => {
     setIsCreatePostLoading(true);
@@ -178,13 +195,13 @@ const ProfilePage = () => {
     }, 6000);
   }, [postContent, userId]);
 
-  
+
   useEffect(() => {
     getUserDetails()
     fetchPostsByUserId();
     getRequests()
     getIncomingRequests()
-  }, [userId]); 
+  }, [userId]);
 
   return (
     <div className="profile-page">
@@ -195,41 +212,41 @@ const ProfilePage = () => {
           <p>Your bio or about information</p>
         </div>
         <div>
-        {isAlreadyFriend ? (
-          <h4>Friend</h4>
-        ):(
-          isRequestedUser ? (
-            <button
-              className="request-button"
-              disabled={isAccepted}
-              onClick={() => { handleReqAccept() }}
-            >
-              {isAccepted ? "Accepted" : "Accept Request"}
-            </button>
+          {isAlreadyFriend ? (
+            <h4>Friend</h4>
           ) : (
-            userId !== currentUserId && (
+            isRequestedUser ? (
               <button
                 className="request-button"
-                onClick={() => { isReqSent ? cancelRequest() : handleSendRequest(); }}
+                disabled={isAccepted}
+                onClick={() => { handleReqAccept() }}
               >
-                {isReqSent ? "Cancel Request" : "Request"}
+                {isAccepted ? "Accepted" : "Accept Request"}
               </button>
+            ) : (
+              userId !== currentUserId && (
+                <button
+                  className="request-button"
+                  onClick={() => { isReqSent ? cancelRequest() : handleSendRequest(); }}
+                >
+                  {isReqSent ? "Cancel Request" : "Request"}
+                </button>
+              )
             )
-          )
-        )}
+          )}
         </div>
       </div>
 
       <div className="create-post">
         {!isOpen && currentUserId === userInfo?._id ? (
           <button onClick={handleOpen}>Create Post</button>
-        ):null}
+        ) : null}
         {isOpen && (
           <div className="modal">
             <textarea
               name="text"
               value={postContent}
-              onChange={(e)=>{setPostContent(e.target.value)}}
+              onChange={(e) => { setPostContent(e.target.value) }}
               placeholder="Write your post here..."
             />
             <div className="buttons">
@@ -245,10 +262,10 @@ const ProfilePage = () => {
       <div className="my-posts-section">
         <h2>{currentUserId === userInfo?._id ? "My Posts" : "Posts"}</h2>
         {posts.map(post => {
-          return(
+          return (
             <Post key={post.id} post={post} userId={currentUserId} userName={current?.user?.name} fetchPostsByUserId={fetchPostsByUserId} />
           )
-          })}
+        })}
       </div>
     </div>
   );

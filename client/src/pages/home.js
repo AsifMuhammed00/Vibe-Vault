@@ -13,6 +13,7 @@ function Home() {
 
     const [posts, setPosts] = React.useState([])
 
+
     const current = useCurrentUser()
     const userId = current?.user?._id;
     const location = useLocation();
@@ -40,11 +41,13 @@ function Home() {
         <div className="home-content-wrapper">
             {location.search === "?notification" ? (
                 <div className="chat-notification-area">
-                    {/* <ChatListing /> */}
                     <NotificationLists />
                 </div>
-            ) : null}
-            <div className='posts-area' style={{marginLeft: location.search === "?notification" ? 300 : undefined}}>
+            ) : location.search === "?chat" ? (<div className="chat-notification-area">
+                <ChatListing />
+            </div>) : null
+            }
+            <div className='posts-area' style={{ marginLeft: location.search === "?notification" || location.search === "?chat" ? 300 : undefined }}>
                 {posts.map((post, index) => {
                     return (
                         <Post key={post._id} post={post} userId={userId} userName={current?.user?.name} fetchPosts={fetchPosts} fromHome={true} />

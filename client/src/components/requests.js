@@ -2,21 +2,21 @@ import React, { useState, useCallback } from 'react';
 import './../pages/search-result.css';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
+import { io } from 'socket.io-client';
 
 const Requests = ({ user, currentUser, fromNotification }) => {
 
     const [isAccepted, setIsAccepted] = React.useState(false)
     const [isRejected, setIsRejected] = React.useState(false)
 
+  const socket = io.connect('http://localhost:3001');
 
     const handleReqAccept = useCallback(async () => {
         setIsAccepted(true)
         try {
-            await await axios.post('/api/accept-req', {
+            socket.emit('accept-req', {
                 userId: user._id,
                 requestedUserId: currentUser,
-            }).then((res) => {
-
             });
         } catch (error) {
             setIsAccepted(false)
