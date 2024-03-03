@@ -90,6 +90,120 @@ async function getUnreadNotificationCount(userId) {
   await client.close();
   return count;
 }
+async function addRecentContacts(senderId,recieverId) {
+  const { db, client } = await connectDB();
+  const recentChatsCollection = db.collection('recentChats');
+
+  const getItemwithSenderId = await recentChatsCollection.findOne({ userId: senderId })
+  const getItemwithRecieverId = await recentChatsCollection.findOne({ userId: recieverId })
+
+  if(getItemwithSenderId){
+    let ids = getItemwithSenderId.ids
+    if (!ids.includes(recieverId)) {
+      ids.unshift(recieverId);
+    } else {
+      ids = ids.filter(id => id !== recieverId);
+      ids.unshift(recieverId);
+    }
+   await recentChatsCollection.updateOne(
+      { userId: senderId },
+      { $set: { ids: ids } },
+    )
+  } else{
+    
+   await recentChatsCollection.insertOne({
+      userId : senderId,
+     ids: [recieverId]
+    });
+  }
+
+  
+  if(getItemwithRecieverId){
+    let ids = getItemwithRecieverId.ids
+    if (!ids.includes(senderId)) {
+      ids.unshift(senderId);
+    } else {
+      ids = ids.filter(id => id !== senderId);
+      ids.unshift(senderId);
+    }
+   await recentChatsCollection.updateOne(
+      { userId: recieverId },
+      { $set: { ids: ids } },
+    )
+  } else{
+    
+   await recentChatsCollection.insertOne({
+      userId : recieverId,
+     ids: [senderId]
+    });
+  }
+  await client.close();
+}
+async function getRecentChats(userId) {
+  const { db, client } = await connectDB();
+  const recentChatsCollection = db.collection('recentChats');
+  const usersCollection = db.collection('users');
+  const chatCollection = db.collection('messages');
+
+  try {
+    const getItemwithSenderId = await recentChatsCollection.findOne({ userId });
+    const ids = getItemwithSenderId.ids || [];
+
+    const userDetailsArray = await Promise.allSettled(ids.map(async id => {
+      try {
+        const user = await usersCollection.findOne(
+          { _id: new ObjectId(id) },
+          { projection: { _id: 1, name: 1 } }
+        );
+
+        const latestMessage = await chatCollection.aggregate([
+          {
+            $match: {
+              $or: [
+                { senderId: id },
+                { receiverId: id }
+              ]
+            }
+          },
+          {
+            $addFields: {
+              latestUserId: {
+                $cond: {
+                  if: { $eq: ["$senderId", id] },
+                  then: "$receiverId",
+                  else: "$senderId"
+                }
+              }
+            }
+          },
+          { $sort: { createdAt: -1 } },
+          { $limit: 1 },
+          { $project: { msg: 1, _id: 0 } }
+        ]).toArray();
+
+        if (latestMessage.length > 0) {
+          return {
+            _id: user._id,
+            name: user.name,
+            lastMessage: latestMessage[0].msg
+          };
+        } else {
+          throw new Error(`No messages found for user with ID ${id}`);
+        }
+      } catch (error) {
+        console.error(`Error fetching user details for ID ${id}:`, error);
+        throw error;
+      }
+    }));
+
+    await client.close(); // Close the client after all operations are complete
+    const finalValue = userDetailsArray.filter(result => result.status === 'fulfilled').map(result => result.value);
+    return finalValue;
+  } catch (error) {
+    console.error('Error:', error);
+    throw error;
+  }
+}
 
 var users = [];
 
@@ -104,35 +218,37 @@ io.sockets.on('connection', function (socket) {
   });
 
   socket.on('userTyping', ({ roomId, userId }) => {
-    console.log("www",roomId,userId)
     socket.to(roomId).emit('typing', { senderId: userId });
-});
+  });
 
-  socket.on('send-msg',async function (data)  {
+  socket.on('send-msg', async function (data) {
     try {
       const { db, client } = await connectDB();
       const messageCollection = db.collection('messages');
-  
+
       const { senderId, recieverId, msg, roomId } = data;
-  
+
       const result = await messageCollection.insertOne({
         senderId,
         recieverId,
         msg,
         seenInfo: false,
         createdAt: moment().valueOf(),
-        hasEdited:false
+        hasEdited: false
       });
+      
+      const getlatestmsg = await messageCollection.findOne({
+        $or: [
+          { recieverId: senderId, senderId: recieverId },
+          { senderId, recieverId }
+        ]
+      }, { sort: { createdAt: -1 } })
 
-     const getlatestmsg = await messageCollection.findOne({$or: [
-        { recieverId : senderId, senderId: recieverId },
-        { senderId, recieverId }
-    ]}, {sort: {createdAt: -1}})
+      await addRecentContacts(senderId,recieverId)
+
+      io.to(roomId).emit('getLatestMsg', getlatestmsg)
+
       await client.close();
-      // if (senderId !== userId) {
-        io.to(roomId).emit('getLatestMsg', getlatestmsg);
-    // }
-      // res.json({ message: 'Message sent successfully!', insertedId: result.insertedId });
     } catch (error) {
       console.error('Error sending message:', error);
       // res.status(500).json({ message: 'Error sending message' });
@@ -387,7 +503,7 @@ app.post('/api/send-msg', async (req, res) => {
       msg,
       seenInfo: false,
       createdAt: moment().valueOf(),
-      hasEdited:false
+      hasEdited: false
     });
 
     await client.close();
@@ -404,25 +520,27 @@ app.get('/api/get-msgs/:senderId/:recieverId/:fromRoom', async (req, res) => {
     const { db, client } = await connectDB();
     const messageCollection = db.collection('messages');
 
-    const { senderId,recieverId,fromRoom } = req.params;
+    const { senderId, recieverId, fromRoom } = req.params;
 
     let result
-    if(fromRoom === 'false'){
-       result = await messageCollection.find({
+    if (fromRoom === 'false') {
+      result = await messageCollection.find({
         $or: [
-          { recieverId : senderId, senderId: recieverId },
+          { recieverId: senderId, senderId: recieverId },
           { senderId, recieverId }
-      ]
+        ]
       }).toArray();
-    } else{
-      result = await messageCollection.findOne({$or: [
-        { recieverId : senderId, senderId: recieverId },
-        { senderId, recieverId }
-    ]}, {sort: {createdAt: -1}})
+    } else {
+      result = await messageCollection.findOne({
+        $or: [
+          { recieverId: senderId, senderId: recieverId },
+          { senderId, recieverId }
+        ]
+      }, { sort: { createdAt: -1 } })
     }
 
     await client.close();
-    res.json({ message: 'Messages fetched',messages:result });
+    res.json({ message: 'Messages fetched', messages: result });
   } catch (error) {
     console.error('Error fetching message:', error);
     res.status(500).json({ message: 'Error fetching message' });
@@ -1003,6 +1121,79 @@ app.get('/api/get-unread-notification-count/:userId', async (req, res) => {
     const { userId } = req.params;
     const count = await getUnreadNotificationCount(userId)
     res.json(count);
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ message: 'Error' });
+  }
+});
+
+app.get('/api/get-recent-chat-profiles/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { db, client } = await connectDB();
+
+    const recentChatsCollection = db.collection('recentChats');
+    const usersCollection = db.collection('users');
+    const chatCollection = db.collection('messages')
+
+
+    const getItemwithSenderId = await recentChatsCollection.findOne({ userId });
+    const ids = getItemwithSenderId.ids || [];
+
+    const userDetailsArray = await Promise.all(ids.map(async id => { // Fixed typo: userIds -> ids
+      try {
+        const user = await usersCollection.findOne(
+          { _id: new ObjectId(id) },
+          { projection: { _id: 1, name: 1, } }
+        );
+     
+        const latestMessage = await chatCollection.aggregate([
+          {
+            $match: {
+              $or: [
+                { senderId: id },
+                { recieverId: id }
+              ]
+            }
+          },
+          {
+            $addFields: {
+              latestUserId: {
+                $cond: {
+                  if: { $eq: ["$senderId", id] },
+                  then: "$recieverId",
+                  else: "$senderId"
+                }
+              }
+            }
+          },
+          {
+            $sort: { createdAt: -1 }
+          },
+          {
+            $limit: 1
+          },
+          {
+            $project: {
+              msg: 1,
+              _id: 0
+            }
+          }
+        ]).toArray()
+        console.log("latestMessage", latestMessage);
+
+        return {
+          _id: user._id,
+          name: user.name,
+          lastMessage: latestMessage[0].msg
+        };
+      } catch (error) {
+        console.error(`Error fetching user details for ID ${id}:`, error);
+        throw error;
+      }
+    }));
+  //  const recentChats = await getRecentChats(userId)
+    res.json(userDetailsArray);
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ message: 'Error' });
