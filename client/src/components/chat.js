@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import './chat.css';
 import { useCurrentUser } from '../functions';
 import axios from 'axios';
@@ -12,15 +12,23 @@ function Chat(props) {
 
   const { selectedUser, setSelectedUser, userId } = props;
 
-  
+
   function generateRoomId(userId1, userId2) {
     const sortedUserIds = [userId1, userId2].sort().join('');
     return sortedUserIds;
-}
-  const roomId = generateRoomId(selectedUser,userId)
+  }
+  const roomId = generateRoomId(selectedUser, userId)
 
 
   const socket = io.connect('http://localhost:3001');
+
+  const scrollRef = useRef(null);
+
+  const scrollToBottom = () => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  };
 
   const fetchMsgs = React.useCallback(async () => {
     if (userId && selectedUser) {
@@ -35,63 +43,33 @@ function Chat(props) {
   }, [userId, selectedUser]);
 
 
-  const fetchLatestMsgs = React.useCallback(async () => {
+  const sendMsg = React.useCallback(async () => {
     if (userId && selectedUser) {
       try {
-        await axios.get(`/api/get-msgs/${userId}/${selectedUser}/${true}`).then((res) => {
-          setMessages(prevMessages => [...prevMessages, res.data.messages]);
+        socket.emit('send-msg', {
+          senderId: userId,
+          recieverId: selectedUser,
+          msg: inputText,
+          roomId
         });
+        setInputText('')
       } catch (error) {
-        console.error('Error fetching notifications', error.message);
+        console.error('Error', error.message);
       }
     }
-  }, [userId, selectedUser, messages]);
+  }, [userId, selectedUser, inputText, roomId]);
 
-
-  const sendMsg = React.useCallback(async () => {
-      if (userId && selectedUser) {
-          try {
-              socket.emit('send-msg', {
-                  senderId: userId,
-                  recieverId : selectedUser,
-                  msg: inputText,
-                  roomId
-              });
-              setInputText('')
-              // fetchLatestMsgs()
-          } catch (error) {
-              console.error('Error', error.message);
-          }
-      }
-  }, [userId,selectedUser,inputText,roomId]);
-
-  // const sendMsg = React.useCallback(async () => {
-  //   if (userId && selectedUser) {
-  //     try {
-  //       await axios.post('/api/send-msg', {
-  //         senderId: userId,
-  //         recieverId: selectedUser,
-  //         msg: inputText
-  //       }).then((res) => {
-  //         setInputText('')
-  //         fetchLatestMsgs()
-  //       });
-  //     } catch (error) {
-  //       console.error('Error', error.message);
-  //     }
-  //   }
-  // }, [userId, selectedUser, inputText]);
 
   const emitTypingStatus = () => {
-    socket.emit('userTyping', { roomId, userId});
-};
+    socket.emit('userTyping', { roomId, userId });
+  };
 
   const handleInputChange = (event) => {
     const typing = event.target.value.length > 0;
     if (typing) {
-        emitTypingStatus();
+      emitTypingStatus();
     }
-};
+  };
   React.useEffect(() => {
     fetchMsgs()
   }, [userId])
@@ -101,34 +79,53 @@ function Chat(props) {
     socket.on('getLatestMsg', (msg) => {
       if (!messages.some(m => m._id === msg._id)) {
         setMessages(prevMessages => [...prevMessages, msg]);
-    }
+      }
     });
-    
+
     return () => {
-        socket.emit('leave-chat', roomId);
+      socket.emit('leave-chat', roomId);
+      scrollToBottom()
     };
-}, [roomId,messages]);
+  }, [roomId, messages]);
 
 
-socket.on('typing', ({ senderId }) => {
+  socket.on('typing', ({ senderId }) => {
     if (senderId !== userId) {
-        setIsTyping(true);
-        setTimeout(() => {
-            setIsTyping(false);
-        }, 2000);
+      setIsTyping(true);
+      setTimeout(() => {
+        setIsTyping(false);
+      }, 2000);
     }
-});
+  });
+
+  const handleUpdateSeenInfo = React.useCallback(async () => {
+    try {
+      socket.emit('update-seen-info', {
+        userId,
+        selectedUser,
+      });
+    } catch (error) {
+      console.error('Error', error.message);
+    }
+  }, [userId, selectedUser]);
+
+  React.useEffect(() => {
+    handleUpdateSeenInfo()
+  }, [userId, selectedUser, messages])
 
   return (
     <div className="chat-container">
       <div className="chat-header">Chat</div>
       <div className="chat-header"><button onClick={() => { setSelectedUser(null) }}>Back</button></div>
-      <div className="chat-messages">
+      <div className="chat-messages"  ref={scrollRef}>
         {messages.map((message) => {
           return (
             <div style={{ display: "flex", minHeight: 10, width: "100%", justifyContent: message.senderId === userId ? "end" : "start" }}>
               <div key={message._id} className={`chat-message ${message.senderId === userId ? 'chat-message--self' : ''}`}>
                 <p>{message.msg}</p>
+                {message.senderId === userId && (
+                  <span style={{ fontSize: 10, color: "gray" }}>{message.seenInfo ? "Seen" : null}</span>
+                )}
               </div>
             </div>
           )
@@ -139,7 +136,7 @@ socket.on('typing', ({ senderId }) => {
         <input
           type="text"
           value={inputText}
-          onChange={(e) => {setInputText(e.target.value);handleInputChange(e)}}
+          onChange={(e) => { setInputText(e.target.value); handleInputChange(e) }}
           onKeyPress={(e) => e.key === 'Enter' && sendMsg()}
         />
         <button onClick={sendMsg}>Send</button>

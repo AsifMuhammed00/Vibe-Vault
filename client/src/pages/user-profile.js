@@ -23,7 +23,11 @@ const ProfilePage = () => {
 
   const [isAccepted, setIsAccepted] = React.useState(false)
   const [isAlreadyFriend, setIsAlreadyFriend] = React.useState(false)
-
+  
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [customImageName, setCustomImageName] = useState('');
+  const [selectedImage, setSelectedImage] = useState(null);
+  
   const current = useCurrentUser();
   const { id } = useParams();
   const socket = io.connect('http://localhost:3001');
@@ -145,7 +149,6 @@ const ProfilePage = () => {
       return u === userId
     })
 
-    console.log("isFriend", isFriend)
     if (Boolean(isFriend)) {
       setIsAlreadyFriend(true)
     }
@@ -176,24 +179,50 @@ const ProfilePage = () => {
     }
   }, [userId]);
 
+  const handleUpload = async () => {
+    if (selectedFile) {
+      const formData = new FormData();
+      formData.append('customImageName', customImageName); 
+      formData.append('image', selectedFile);
+  
+      try {
+        const res = await axios.post('/api/upload', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+        console.log(res.data);
+      } catch (err) {
+        console.error(err);
+      }
+    } else {
+      console.log('No file selected');
+    }
+  };
+  
+
   const handlePostSubmit = useCallback(async () => {
     setIsCreatePostLoading(true);
-    setTimeout(async () => {
-      try {
-        await axios.post('http://localhost:3001/api/create-new-post', {
-          userId,
-          postContent
-        }).then(() => {
-          fetchPostsByUserId();
-          setIsCreatePostLoading(false);
-          setIsOpen(false);
-        });
-      } catch (error) {
-        console.error('Error creating post', error.message);
+    try {
+      await axios.post('http://localhost:3001/api/create-new-post', {
+        userId,
+        postContent,
+        postImage: customImageName
+      }).then(async () => {
+        if(selectedFile){
+        await handleUpload();
+        }
+        await fetchPostsByUserId();
         setIsCreatePostLoading(false);
-      }
-    }, 6000);
-  }, [postContent, userId]);
+        setPostContent('')
+        setIsOpen(false);
+      });
+    } catch (error) {
+      console.error('Error creating post', error.message);
+      setIsCreatePostLoading(false);
+    }
+  }, [postContent, userId, selectedFile, customImageName]);
+  
 
 
   useEffect(() => {
@@ -203,10 +232,90 @@ const ProfilePage = () => {
     getIncomingRequests()
   }, [userId]);
 
+  const handleFileChange = (e) => {
+    const file = moment().valueOf()
+    setSelectedFile(e.target.files[0]);
+    setCustomImageName(`img-${userId+file}.jpg`);
+  };
+
+const handleUpdateprofilePicture = async()=>{
+  try {
+    await axios.post('/api/update-profile-picture', {
+        userId: currentUserId,
+        fileName: customImageName,
+    })
+} catch (error) {
+    console.error('Error', error.message);
+}
+}
+
+const handleImageUpload = useCallback(async(event) => {
+  const file = event.target.files[0];
+
+  if (!file) return;
+
+  const filename = `profile-${currentUserId}-${moment().valueOf()}.jpg`;
+  console.log("filename",filename)
+
+  if (file) {
+    const formData = new FormData();
+    formData.append('customImageName', filename); 
+    formData.append('image', file);
+
+    try {
+      const res = await axios.post('/api/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      console.log(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+
+    try {
+      await axios.post('/api/update-profile-picture', {
+          userId: currentUserId,
+          filename,
+      })
+  } catch (error) {
+      console.error('Error', error.message);
+  }
+  } else {
+    console.log('No file selected');
+  }
+
+  const reader = new FileReader();
+  
+  reader.onloadend = () => {
+    setSelectedImage(reader.result);
+  };
+
+  reader.readAsDataURL(file);
+
+}, [userId,currentUserId]); 
+
+
+  
+  const handleImageClick = () => {
+    document.getElementById('fileInput').click();
+  };
+
+  console.log("selected",selectedFile)
+
+  const imageUrl = selectedImage || `/api/images/${userInfo?.profilePicture}`  ;
+
   return (
     <div className="profile-page">
       <div className="profile-header">
-        <img src="url_to_your_profile_picture" alt="Profile" className="profile-picture" />
+      <input
+        id="fileInput"
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={handleImageUpload}
+      />
+        <img src={imageUrl} alt="Profile" onClick={handleImageClick} className="profile-picture" />
         <div className="about-section">
           <h2>{userInfo?.name}  {currentUserId === userInfo?._id ? "(You)" : null}</h2>
           <p>Your bio or about information</p>
@@ -249,6 +358,7 @@ const ProfilePage = () => {
               onChange={(e) => { setPostContent(e.target.value) }}
               placeholder="Write your post here..."
             />
+             <input type="file" onChange={handleFileChange}/>
             <div className="buttons">
               <button style={{ marginRight: 20 }} onClick={handlePostSubmit} disabled={isCreatePostLoading}>
                 {isCreatePostLoading ? "Posting..." : "Post"}

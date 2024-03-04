@@ -27,7 +27,7 @@ const Requests = ({ user, currentUser, fromNotification }) => {
     const handleReqReject = useCallback(async () => {
         setIsRejected(true)
         try {
-            await await axios.post('/api/reject-req', {
+            await axios.post('/api/reject-req', {
                 userId: user._id,
                 requestedUserId: currentUser,
             }).then((res) => {

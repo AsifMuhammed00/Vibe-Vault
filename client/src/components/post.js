@@ -57,7 +57,7 @@ const Post = ({ post, userId, userName, fetchPostsByUserId, fetchPosts, fromHome
 
   React.useEffect(() => {
     getPostInfo()
-  }, [])
+  }, [post])
 
 
   React.useEffect(() => {
@@ -65,8 +65,12 @@ const Post = ({ post, userId, userName, fetchPostsByUserId, fetchPosts, fromHome
       return p === current?.user?._id
     })
     setIsLike(Boolean(isLikedPost))
-  }, [postInfo])
+  }, [postInfo,post])
 
+  let imageUrl
+  if(post.postImage){
+  imageUrl = `/api/images/${post.postImage}`;
+  }
   return (
     <div className="post" key={post._id}>
       <div style={{ display: "flex", justifyContent: 'space-between' }}>
@@ -89,7 +93,9 @@ const Post = ({ post, userId, userName, fetchPostsByUserId, fetchPosts, fromHome
         className="post-caption"
         dangerouslySetInnerHTML={{ __html: post.postContent.replace(/\n/g, "<br />") }}
       />
-      <img src={"https://img.photographyblog.com/reviews/kodak_pixpro_fz201/photos/kodak_pixpro_fz201_01.jpg"} alt="Post" className="post-image" />
+      {post.postImage && (
+      <img src={imageUrl} alt="Post" className="post-image" />
+      )}
       <div className="post-actions">
         <span>Likes: {postInfo?.likes.length}</span>
         <button className="like-button" onClick={handleLikeUnlike}>{isLike ? "Liked" : "Like"}</button>

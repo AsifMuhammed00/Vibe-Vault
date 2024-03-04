@@ -61,12 +61,30 @@ function ContactList() {
     getRecentChatProfiles()
   },[userId,selectedUser])
 
-  socket.emit("connectedd",userId)
+  // React.useEffect(()=>{
+  socket.emit("connected",userId)
+  // return () => {
+  //   socket.disconnect(userId);
+  // };
 
-  socket.on("recentChats", function (data) {
-    setContacts(data.userDetailsArray);
-})
-  
+  // },[userId])
+
+  socket.on("recentChat", function (data) {
+    if (data) {
+      const newItem = data
+      const existingIndex = contacts.findIndex(contact => contact._id === newItem._id);
+
+      if (existingIndex === -1) {
+        const updatedContacts = [newItem, ...contacts];
+        setContacts(updatedContacts);
+      } else {
+        const filteredContacts = contacts.filter(contact => contact._id !== newItem._id);
+        filteredContacts.unshift(newItem);
+        setContacts(filteredContacts);
+      }
+    }
+  })
+
   return (
     Boolean(selectedUser) ? (
       <Chat setSelectedUser={setSelectedUser} selectedUser={selectedUser} userId={userId}/>
@@ -102,7 +120,7 @@ function ContactList() {
               <img src={"https://images.pexels.com/photos/674010/pexels-photo-674010.jpeg?cs=srgb&dl=pexels-anjana-c-674010.jpg&fm=jpg"} alt={contact.name} className="avatar" />
               <div className="info">
                 <h2>{contact.name}</h2>
-                <h2 className="last-message">{contact.lastMessage}</h2>
+                <h2 className="last-message" style={{color: contact.seenInfo ? undefined : "black"}}>{contact.lastMessage}</h2>
                 <span className="status">NA</span>
               </div>
             </li>

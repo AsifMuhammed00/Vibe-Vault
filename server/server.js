@@ -10,16 +10,20 @@ const jwt = require('jsonwebtoken');
 const moment = require('moment')
 const http = require('http');
 const server = http.createServer(app);
+const fs = require('fs');
+const path = require('path');
+const upload = require('./file-upload');
 
 // const io = socketIo(server);
 
 const { ObjectId } = require('mongodb');
 
-
+app.use(bodyParser.urlencoded({ extended: true })); 
 app.use(bodyParser.json());
 
 const cors = require('cors');
 app.use(cors());
+app.use(express.urlencoded({ extended: true }));
 
 const { connectDB } = require('./db');
 const secretKey = '7f8a118b03e81e37c1733d5b27db0a28f29999e91d0b03a417a50586e7260c2d ';
@@ -30,6 +34,7 @@ const io = require('socket.io')(server, {
     methods: ["GET", "POST"]
   },
 });
+
 
 async function getNotifications(userId) {
   const { db, client } = await connectDB();
@@ -139,71 +144,6 @@ async function addRecentContacts(senderId,recieverId) {
   }
   await client.close();
 }
-async function getRecentChats(userId) {
-  const { db, client } = await connectDB();
-  const recentChatsCollection = db.collection('recentChats');
-  const usersCollection = db.collection('users');
-  const chatCollection = db.collection('messages');
-
-  try {
-    const getItemwithSenderId = await recentChatsCollection.findOne({ userId });
-    const ids = getItemwithSenderId.ids || [];
-
-    const userDetailsArray = await Promise.allSettled(ids.map(async id => {
-      try {
-        const user = await usersCollection.findOne(
-          { _id: new ObjectId(id) },
-          { projection: { _id: 1, name: 1 } }
-        );
-
-        const latestMessage = await chatCollection.aggregate([
-          {
-            $match: {
-              $or: [
-                { senderId: id },
-                { receiverId: id }
-              ]
-            }
-          },
-          {
-            $addFields: {
-              latestUserId: {
-                $cond: {
-                  if: { $eq: ["$senderId", id] },
-                  then: "$receiverId",
-                  else: "$senderId"
-                }
-              }
-            }
-          },
-          { $sort: { createdAt: -1 } },
-          { $limit: 1 },
-          { $project: { msg: 1, _id: 0 } }
-        ]).toArray();
-
-        if (latestMessage.length > 0) {
-          return {
-            _id: user._id,
-            name: user.name,
-            lastMessage: latestMessage[0].msg
-          };
-        } else {
-          throw new Error(`No messages found for user with ID ${id}`);
-        }
-      } catch (error) {
-        console.error(`Error fetching user details for ID ${id}:`, error);
-        throw error;
-      }
-    }));
-
-    await client.close(); // Close the client after all operations are complete
-    const finalValue = userDetailsArray.filter(result => result.status === 'fulfilled').map(result => result.value);
-    return finalValue;
-  } catch (error) {
-    console.error('Error:', error);
-    throw error;
-  }
-}
 
 var users = [];
 
@@ -225,6 +165,8 @@ io.sockets.on('connection', function (socket) {
     try {
       const { db, client } = await connectDB();
       const messageCollection = db.collection('messages');
+      const userCollection = db.collection('users');
+
 
       const { senderId, recieverId, msg, roomId } = data;
 
@@ -244,9 +186,12 @@ io.sockets.on('connection', function (socket) {
         ]
       }, { sort: { createdAt: -1 } })
 
-      await addRecentContacts(senderId,recieverId)
+      const getUserInfo = await userCollection.findOne({_id: new ObjectId(senderId)})
 
+      await addRecentContacts(senderId,recieverId)
       io.to(roomId).emit('getLatestMsg', getlatestmsg)
+
+      io.sockets.to(users[recieverId]).emit('recentChat', {_id: senderId,name: getUserInfo.name,lastMessage: msg, seenInfo: false });
 
       await client.close();
     } catch (error) {
@@ -361,6 +306,33 @@ io.sockets.on('connection', function (socket) {
     }
   })
 
+  socket.on('update-seen-info', async function (data) {
+    try {
+      const { db, client } = await connectDB();
+      const messageCollection = db.collection('messages');
+
+
+      const { userId,selectedUser } = data
+
+     await messageCollection.updateMany(
+        { 
+           $and: [
+              { recieverId: userId },
+              { senderId: selectedUser}
+           ]
+        },
+        { $set: { seenInfo: true } }
+     )
+     
+
+      await client.close();
+    } catch (error) {
+      console.error('Error:', error);
+      // res.status(500).json({ message: 'Error' });
+    }
+  })
+
+
   socket.on('cancel-req', async function (data) {
     try {
       const { userId, requestedUserId } = data;
@@ -457,9 +429,8 @@ io.sockets.on('connection', function (socket) {
   socket.on('leave-chat', (roomId) => {
     socket.leave(roomId);
   });
-  // socket.on('disconnect', () => {
-  //   console.log('User disconnected:', socket.id);
-  // });
+  socket.on('disconnect', (userId) => {
+  });
 });
 
 
@@ -547,8 +518,6 @@ app.get('/api/get-msgs/:senderId/:recieverId/:fromRoom', async (req, res) => {
   }
 });
 
-
-
 app.post('/api/login', async (req, res) => {
 
   const { email, password } = req.body;
@@ -619,12 +588,13 @@ app.post('/api/create-new-post', async (req, res) => {
     const { db, client } = await connectDB();
     const postCollection = db.collection('posts');
 
-    const { userId, postContent } = req.body;
+    const { userId, postContent,postImage } = req.body;
 
     const result = await postCollection.insertOne({
       userId,
       postContent,
       likes: [],
+      postImage,
       createdAt: moment().valueOf()
     });
 
@@ -635,6 +605,75 @@ app.post('/api/create-new-post', async (req, res) => {
     console.error('Error creating item:', error);
     res.status(500).json({ message: 'Error creating item' });
   }
+});
+
+// app.post('/api/upload',  (req, res) => {
+//   console.log('Request body:', req.body); // Log the request body
+//   console.log('Request file:', req.file);
+//   upload(req, res, (err) => {
+//     if (err) {
+//       console.log(err);
+//       res.status(500).json({ error: 'Error uploading file.' });
+//     } else {
+//       const tempPath = req.file.path;
+//       const targetPath = path.join(__dirname, './uploads/' + req.file.filename);
+
+//       fs.rename(tempPath, targetPath, (err) => {
+//         if (err) {
+//           console.log(err);
+//           res.status(500).json({ error: 'Error moving file to destination.' });
+//         } else {
+//           res.status(200).json({ success: 'File uploaded successfully.', filename: req.file.filename });
+//         }
+//       });
+//     }
+//   });
+// });
+
+app.post('/api/upload', upload.single('image'), (req, res) => {
+  if (req.file) {
+      console.log('File uploaded successfully:', req.file.filename);
+      res.json({ message: 'Image uploaded successfully!' });
+  } else {
+      res.status(400).json({ message: 'No file uploaded' });
+  }
+});
+
+app.post('/api/update-profile-picture', async (req, res) => {
+  try {
+    const { db, client } = await connectDB();
+    const usersCollection = db.collection('users');
+
+
+    const { userId, fileName } = req.body;
+
+      await usersCollection.updateOne(
+        { _id: new ObjectId(userId) },
+        { $set: { profilePicture: fileName } },
+      );
+
+    await client.close();
+    res.status(200).send('Operation completed successfully.');
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ message: 'Error' });
+  }
+});
+
+
+app.get('/api/images/:imageName', (req, res) => {
+  const imageName = req.params.imageName;
+  const imagePath = path.join(__dirname, 'uploads', imageName);
+
+  fs.readFile(imagePath, (err, data) => {
+    if (err) {
+      console.error('Error reading image:', err);
+      res.status(404).send('Image not found');
+    } else {
+      res.writeHead(200, { 'Content-Type': 'image/jpeg' });
+      res.end(data);
+    }
+  });
 });
 
 app.get('/api/posts/:userId', async (req, res) => {
@@ -1176,7 +1215,8 @@ app.get('/api/get-recent-chat-profiles/:userId', async (req, res) => {
           {
             $project: {
               msg: 1,
-              _id: 0
+              _id: 0,
+              seenInfo:1
             }
           }
         ]).toArray()
@@ -1185,7 +1225,8 @@ app.get('/api/get-recent-chat-profiles/:userId', async (req, res) => {
         return {
           _id: user._id,
           name: user.name,
-          lastMessage: latestMessage[0].msg
+          lastMessage: latestMessage[0].msg,
+          seenInfo: latestMessage[0].seenInfo
         };
       } catch (error) {
         console.error(`Error fetching user details for ID ${id}:`, error);
