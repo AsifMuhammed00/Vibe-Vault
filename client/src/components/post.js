@@ -40,7 +40,7 @@ const Post = ({ post, userId, userName, fetchPostsByUserId, fetchPosts, fromHome
 
 
   const handleLikeUnlike = useCallback(async () => {
-    // setIsLike(!isLike)
+    setIsLike(!isLike)
     try {
       socket.emit('like-unlike', {
         userId,

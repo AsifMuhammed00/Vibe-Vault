@@ -27,6 +27,11 @@
     font-size: 16px;
     margin-bottom: 5px;
   }
+  .last-message{
+    font-size: 13px;
+    margin: unset;
+    color: rgb(141, 141, 141);
+  }
   
   .status {
     font-size: 12px;

@@ -109,24 +109,8 @@ function Chat(props) {
     };
 }, [roomId,messages]);
 
-// useEffect(() => {
-//   socket.on('typing', ({ senderId }) => {
-//     console.log("senderId",senderId)
-//       if (senderId !== userId) {
-//           setIsTyping(true);
-//           setTimeout(() => {
-//               setIsTyping(false);
-//           }, 2000);
-//       }
-//   });
-
-//   return () => {
-//       socket.off('typing');
-//   };
-// }, [userId,socket]);
 
 socket.on('typing', ({ senderId }) => {
-  console.log("senderId",senderId)
     if (senderId !== userId) {
         setIsTyping(true);
         setTimeout(() => {

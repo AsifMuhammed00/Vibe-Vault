@@ -3,34 +3,19 @@ import "./contactlist.css"
 import { useCurrentUser } from "../functions";
 import axios from "axios";
 import Chat from "../components/chat";
+import { io } from "socket.io-client";
 
 function ContactList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [users, setUsers] = React.useState([])
+  const [contacts, setContacts] = React.useState([])
+
   const [selectedUser, setSelectedUser] = React.useState()
 
 
   const current = useCurrentUser()
   const userId = current?.user?._id
-
-
-  const contacts = [
-    {
-      id: 1,
-      name: "John Doe",
-      avatar: "https://images.pexels.com/photos/674010/pexels-photo-674010.jpeg?cs=srgb&dl=pexels-anjana-c-674010.jpg&fm=jpg",
-      status: "online",
-    },
-    {
-      id: 2,
-      name: "Jane Doe",
-      avatar: "https://images.pexels.com/photos/674010/pexels-photo-674010.jpeg?cs=srgb&dl=pexels-anjana-c-674010.jpg&fm=jpg",
-      status: "offline",
-    },
-    // ...more contacts
-  ];
-
 
   const handleSearchChange = (event) => {
     setSearchTerm(event.target.value);
@@ -54,9 +39,33 @@ function ContactList() {
     }
   }, [searchTerm]);
 
+  const getRecentChatProfiles = useCallback(async () => {
+    if (userId) {
+      try {
+        await axios.get(`/api/get-recent-chat-profiles/${userId}`).then((res) => {
+          setContacts(res.data);
+        });
+      } catch (error) {
+        console.error('Error fetching profiles', error.message);
+      }
+    }
+  }, [userId]);
+
+  const socket = io('http://localhost:3001');
+
   React.useEffect(() => {
     getSearchResults()
   }, [searchTerm])
+
+  React.useEffect(()=>{
+    getRecentChatProfiles()
+  },[userId,selectedUser])
+
+  socket.emit("connectedd",userId)
+
+  socket.on("recentChats", function (data) {
+    setContacts(data.userDetailsArray);
+})
   
   return (
     Boolean(selectedUser) ? (
@@ -89,11 +98,12 @@ function ContactList() {
         ) : null}
         <ul className="contact-list">
           {contacts.map((contact) => (
-            <li key={contact.id} className="contact" >
-              <img src={contact.avatar} alt={contact.name} className="avatar" />
+            <li key={contact._id} className="contact" onClick={()=>{setSelectedUser(contact._id)}}>
+              <img src={"https://images.pexels.com/photos/674010/pexels-photo-674010.jpeg?cs=srgb&dl=pexels-anjana-c-674010.jpg&fm=jpg"} alt={contact.name} className="avatar" />
               <div className="info">
                 <h2>{contact.name}</h2>
-                <span className="status">{contact.status}</span>
+                <h2 className="last-message">{contact.lastMessage}</h2>
+                <span className="status">NA</span>
               </div>
             </li>
           ))}

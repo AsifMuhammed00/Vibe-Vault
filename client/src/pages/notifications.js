@@ -98,7 +98,6 @@ function NotificationLists() {
         }
     }, [notifications])
 
-    console.log("notifications", notifications)
 
     const handleUpdateReadData = React.useCallback(async () => {
         try {
@@ -127,10 +126,13 @@ function NotificationLists() {
         }
     }, [unreadedIds])
 
-    socket.on("notifications", function (data) {
-        setNotifications(data.notifications);
-        getRequests()
-    })
+    // React.useEffect(()=>{
+        socket.on("notifications", function (data) {
+            setNotifications(data.notifications);
+            getRequests()
+        })
+    
+    // },[])
 
     return (
         <div className="navigation-wrapper">
