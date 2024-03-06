@@ -71,13 +71,18 @@ const Post = ({ post, userId, userName, fetchPostsByUserId, fetchPosts, fromHome
   if(post.postImage){
   imageUrl = `/api/images/${post.postImage}`;
   }
+  let profilePicture 
+  if(post.profilePicture){
+  profilePicture = `/api/images/${post.profilePicture}`;
+
+  }
   return (
     <div className="post" key={post._id}>
       <div style={{ display: "flex", justifyContent: 'space-between' }}>
         <div style={{ display: "flex", flexDirection: "column" }}>
           {fromHome && (
             <div style={{display:"flex",alignItems:"center"}}>
-              <img style={{width:40,height:40}} src={'https://i.pinimg.com/736x/dc/3d/ef/dc3defd9307e2fda14dc377691be1c62.jpg'} alt="profile" className="profile-pic" />
+              <img style={{width:40,height:40}} src={profilePicture} alt="profile" className="profile-pic" />
               <Link to={`/profile/${post.userId}`}><h3 style={{ margin: "unset" }}>{post.postOwnerName}</h3></Link>
             </div>
           )}

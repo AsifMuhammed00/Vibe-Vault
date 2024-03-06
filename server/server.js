@@ -1,6 +1,7 @@
 // server.js
 
 // const db = require('./db');
+
 const express = require('express');
 const app = express();
 const bcrypt = require('bcrypt');
@@ -698,11 +699,31 @@ app.delete('/api/posts/:userId/:postId', async (req, res) => {
     const { db, client } = await connectDB();
     const postCollection = db.collection('posts');
 
+    const postDetails = await postCollection.findOne({
+      _id: new ObjectId(postId),
+      userId
+    });
+
+
+
     const result = await postCollection.deleteOne({
       _id: new ObjectId(postId),
       userId
     });
 
+
+    if(postDetails.postImage){
+      const fullPath = path.join(__dirname, '.', 'uploads', postDetails.postImage);
+
+      fs.unlink(fullPath, (error) => {
+          if (error) {
+              console.error('Error deleting file:', error);
+          } else {
+              console.log('File deleted successfully');
+          }
+      });
+
+    }
     await client.close();
 
     if (result.deletedCount === 1) {
@@ -1053,7 +1074,8 @@ app.get('/api/get-recent-posts/:userId', async (req, res) => {
       const postOwner = await userCollection.findOne({ _id: new ObjectId(post.userId) });
       return {
         ...post,
-        postOwnerName: postOwner.name
+        postOwnerName: postOwner.name,
+        profilePicture : postOwner.profilePicture
       };
     }));
 

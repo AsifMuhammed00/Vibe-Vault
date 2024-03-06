@@ -276,7 +276,7 @@ const handleImageUpload = useCallback(async(event) => {
     try {
       await axios.post('/api/update-profile-picture', {
           userId: currentUserId,
-          filename,
+          fileName:filename,
       })
   } catch (error) {
       console.error('Error', error.message);
@@ -315,7 +315,7 @@ const handleImageUpload = useCallback(async(event) => {
         style={{ display: 'none' }}
         onChange={handleImageUpload}
       />
-        <img src={imageUrl} alt="Profile" onClick={handleImageClick} className="profile-picture" />
+        <img src={imageUrl} alt="Profile" onClick={userId === currentUserId ? handleImageClick : undefined} className="profile-picture" />
         <div className="about-section">
           <h2>{userInfo?.name}  {currentUserId === userInfo?._id ? "(You)" : null}</h2>
           <p>Your bio or about information</p>
