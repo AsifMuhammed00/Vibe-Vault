@@ -4,6 +4,8 @@ import axios from 'axios';
 import { useCurrentUser } from '../functions';
 import { useNavigate, useLocation } from "react-router-dom";
 import Requests from "../components/requests";
+import { useDispatch, useSelector } from 'react-redux';
+
 import io from 'socket.io-client';
 
 
@@ -25,6 +27,8 @@ const Notification = ({ notification, index, requestedUsers }) => {
             setFriendReq(result)
         }
     }, [requestedUsers, notification])
+
+
 
 
     return (
@@ -54,26 +58,7 @@ const Notification = ({ notification, index, requestedUsers }) => {
 function NotificationLists() {
 
     const current = useCurrentUser()
-    const userId = current?.user?._id;
-    const [notifications, setNotifications] = React.useState([])
     const [requestedUsers, setRequestedUsers] = React.useState([])
-
-    const location = useLocation()
-    const socket = io('http://localhost:3001');
-    socket.emit("connected",userId)
-
-    const fetchNotifications = React.useCallback(async () => {
-        if (userId) {
-            try {
-                await axios.get(`/api/get-recent-notifications/${userId}`).then((res) => {
-                    setNotifications(res.data)
-                });
-            } catch (error) {
-                console.error('Error fetching notifications', error.message);
-            }
-        }
-    }, [userId]);
-
 
     const getRequests = React.useCallback(async () => {
         try {
@@ -84,6 +69,11 @@ function NotificationLists() {
             console.error('Error', error.message);
         }
     }, [current]);
+
+
+    const notifications = useSelector((state) => {
+        return state.notification.data
+    })
 
     const unreadedIds = React.useMemo(() => {
         if (notifications.length > 0) {
@@ -114,25 +104,13 @@ function NotificationLists() {
         if (current?.user?._id) {
             getRequests()
         }
-    }, [current])
-
-    React.useEffect(() => {
-        fetchNotifications()
-    }, [userId])
+    }, [current,notifications])
 
     React.useEffect(() => {
         if (unreadedIds?.length > 0) {
             handleUpdateReadData()
         }
     }, [unreadedIds])
-
-    // React.useEffect(()=>{
-        socket.on("notifications", function (data) {
-            setNotifications(data.notifications);
-            getRequests()
-        })
-    
-    // },[])
 
     return (
         <div className="navigation-wrapper">

@@ -61,13 +61,7 @@ function ContactList() {
     getRecentChatProfiles()
   },[userId,selectedUser])
 
-  // React.useEffect(()=>{
   socket.emit("connected",userId)
-  // return () => {
-  //   socket.disconnect(userId);
-  // };
-
-  // },[userId])
 
   socket.on("recentChat", function (data) {
     if (data) {

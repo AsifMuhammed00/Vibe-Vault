@@ -18,7 +18,6 @@ function Home() {
     const userId = current?.user?._id;
     const location = useLocation();
 
-
     const fetchPosts = React.useCallback(async () => {
         if (userId) {
             try {
@@ -41,6 +40,7 @@ function Home() {
         <div className="home-content-wrapper">
             {location.search === "?notification" ? (
                 <div className="chat-notification-area">
+                    {}
                     <NotificationLists />
                 </div>
             ) : location.search === "?chat" ? (<div className="chat-notification-area">

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
 import "./App.css";
+import { Provider } from 'react-redux';
 
-// Replace with your custom components or links
 import Home from './pages/home';
 import About from './pages/about';
 import Contact from './pages/contact';
@@ -14,6 +14,7 @@ import { useCurrentUser } from './functions/index';
 import LoginRegisterPage from './pages/login-register'
 import SearchResults from './pages/search-result';
 import MyRequests from './pages/my-requests';
+import store from './redux-toolkit/store';
 
 
 const App = () => {
@@ -102,11 +103,13 @@ const App = () => {
           <Route path="/login-register" element={<LoginRegisterPage />} />
         </Routes>
         <div className="app">
+          <Provider store={store}>
           <SiderBar style={{ display: collapsed ? 'none' : 'block' }} />
           <div className="main-content">
             {/* <HeaderBar /> */}
             <ContentArea />
           </div>
+          </Provider>
         </div>
       </Router>
     );

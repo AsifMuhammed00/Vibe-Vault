@@ -191,7 +191,6 @@ const ProfilePage = () => {
             'Content-Type': 'multipart/form-data'
           }
         });
-        console.log(res.data);
       } catch (err) {
         console.error(err);
       }

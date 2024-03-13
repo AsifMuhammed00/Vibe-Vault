@@ -261,7 +261,6 @@ io.sockets.on('connection', function (socket) {
       const postCollection = db.collection('posts');
       const notificationCollection = db.collection('notifications');
 
-
       const { userId, postId, isLike, postOwnerId } = data
 
       if (!isLike) {
